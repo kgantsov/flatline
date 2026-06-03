@@ -19,6 +19,19 @@ pub struct ErrorBody {
     pub error: String,
 }
 
+impl std::fmt::Display for ApiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApiError::NotFound(msg) => write!(f, "Not found: {msg}"),
+            ApiError::BadRequest(msg) => write!(f, "Bad request: {msg}"),
+            ApiError::InternalServerError(msg) => write!(f, "Internal server error: {msg}"),
+            ApiError::Forbidden(msg) => write!(f, "Forbidden: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for ApiError {}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         match self {

@@ -1,6 +1,7 @@
 pub mod api;
 pub mod db;
 pub mod error;
+pub mod monitor;
 
 use std::sync::Arc;
 use utoipa::OpenApi;
@@ -12,6 +13,7 @@ use axum::{
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::db::MonitorRepository;
+use crate::monitor::engine::EngineHandle;
 use crate::error::ErrorBody;
 use shared::api::{CreateMonitorRequest, UpdateMonitorRequest};
 use shared::models::{Monitor, MonitorConfig};
@@ -19,6 +21,7 @@ use shared::models::{Monitor, MonitorConfig};
 #[derive(Clone)]
 pub struct AppState {
     pub monitors: Arc<dyn MonitorRepository>,
+    pub engine: EngineHandle,
 }
 
 #[derive(OpenApi)]

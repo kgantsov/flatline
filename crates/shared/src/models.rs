@@ -3,6 +3,19 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+/// HTTP method for an HTTP monitor.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum HttpMethod {
+    Get,
+    Post,
+    Put,
+    Patch,
+    Delete,
+    Head,
+    Options,
+}
+
 /// Protocol-specific monitor configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -13,8 +26,7 @@ pub enum MonitorConfig {
         url: String,
         /// HTTP method. Defaults to GET.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        #[schema(example = "GET")]
-        method: Option<String>,
+        method: Option<HttpMethod>,
         /// Expected HTTP status codes. Defaults to any 2xx.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         expected_status: Option<Vec<u16>>,

@@ -31,6 +31,7 @@ mod tests {
     fn test_app(mock: MockMonitorRepo) -> axum::Router {
         build_router(AppState {
             monitors: Arc::new(mock),
+            engine: server::monitor::engine::EngineHandle::new(),
         })
     }
 
@@ -136,7 +137,9 @@ mod tests {
             make_monitor(Uuid::now_v7(), "Site A"),
             make_monitor(Uuid::now_v7(), "Site B"),
         ];
-        mock.expect_list().once().returning(move || Ok(monitors.clone()));
+        mock.expect_list()
+            .once()
+            .returning(move || Ok(monitors.clone()));
 
         let response = test_app(mock)
             .oneshot(

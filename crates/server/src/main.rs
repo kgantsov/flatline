@@ -1,3 +1,4 @@
+use server::monitor::engine::{EngineHandle, MonitorEngine};
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
 use std::net::SocketAddr;
@@ -24,9 +25,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sqlx::migrate!("../../migrations").run(&pool).await?;
     info!("Database migrations applied");
 
+    let engine_handle = EngineHandle::new();
     let state = AppState {
         monitors: Arc::new(SqliteMonitorRepository { pool }),
+        engine: engine_handle.clone(),
     };
+
+    let mut engine = MonitorEngine::new(state.clone(), engine_handle);
+    engine.start().await?;
 
     let app = build_router(state);
 

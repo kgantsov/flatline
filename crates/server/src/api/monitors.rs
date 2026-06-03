@@ -25,6 +25,7 @@ pub async fn create_monitor(
     Json(payload): Json<CreateMonitorRequest>,
 ) -> Result<(StatusCode, Json<Monitor>), ApiError> {
     let monitor = state.monitors.create(payload).await?;
+    state.engine.start_monitor(state.clone(), monitor.clone()).await;
     Ok((StatusCode::CREATED, Json(monitor)))
 }
 
@@ -81,6 +82,7 @@ pub async fn update_monitor(
     Json(payload): Json<UpdateMonitorRequest>,
 ) -> Result<(StatusCode, Json<Monitor>), ApiError> {
     let monitor = state.monitors.update(monitor_id, payload).await?;
+    state.engine.restart_monitor(state.clone(), monitor.clone()).await;
     Ok((StatusCode::OK, Json(monitor)))
 }
 
@@ -98,6 +100,7 @@ pub async fn delete_monitor(
     State(state): State<AppState>,
     Path(monitor_id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
+    state.engine.stop_monitor(monitor_id).await;
     state.monitors.delete(monitor_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
