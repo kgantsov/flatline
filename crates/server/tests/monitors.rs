@@ -4,11 +4,11 @@ mod tests {
     use axum::http::{Request, StatusCode};
     use chrono::Utc;
     use http_body_util::BodyExt;
-    use server::db::MonitorRepository;
+    use server::db::{CheckRepository, MonitorRepository};
     use server::error::ApiError;
     use server::{AppState, build_router};
-    use shared::api::{CreateMonitorRequest, UpdateMonitorRequest};
-    use shared::models::Monitor;
+    use shared::api::{CreateMonitorCheckRequest, CreateMonitorRequest, UpdateMonitorRequest};
+    use shared::models::{Monitor, MonitorCheck};
     use std::sync::Arc;
     use tower::ServiceExt; // for `oneshot`
     use uuid::Uuid;
@@ -28,9 +28,20 @@ mod tests {
         }
     }
 
-    fn test_app(mock: MockMonitorRepo) -> axum::Router {
+    mock! {
+        pub CheckRepo {}
+
+        #[async_trait::async_trait]
+        impl CheckRepository for CheckRepo {
+            async fn create(&self, check: CreateMonitorCheckRequest) -> Result<MonitorCheck, ApiError>;
+            async fn list_for_monitor(&self, monitor_id: Uuid, limit: i64) -> Result<Vec<MonitorCheck>, ApiError>;
+        }
+    }
+
+    fn test_app(monitors_mock: MockMonitorRepo, checks_mock: MockCheckRepo) -> axum::Router {
         build_router(AppState {
-            monitors: Arc::new(mock),
+            monitors: Arc::new(monitors_mock),
+            checks: Arc::new(checks_mock),
             engine: server::monitor::engine::EngineHandle::new(),
         })
     }
@@ -53,7 +64,7 @@ mod tests {
             })
         });
 
-        let app = test_app(mock);
+        let app = test_app(mock, MockCheckRepo::new());
 
         let body = serde_json::json!({
             "name": "My Site",
@@ -93,7 +104,7 @@ mod tests {
             // missing interval and timeout
         });
 
-        let response = test_app(mock)
+        let response = test_app(mock, MockCheckRepo::new())
             .oneshot(
                 Request::builder()
                     .method("POST")
@@ -141,7 +152,7 @@ mod tests {
             .once()
             .returning(move || Ok(monitors.clone()));
 
-        let response = test_app(mock)
+        let response = test_app(mock, MockCheckRepo::new())
             .oneshot(
                 Request::builder()
                     .method("GET")
@@ -174,7 +185,7 @@ mod tests {
             .once()
             .returning(move |_| Ok(monitor.clone()));
 
-        let response = test_app(mock)
+        let response = test_app(mock, MockCheckRepo::new())
             .oneshot(
                 Request::builder()
                     .method("GET")
@@ -202,7 +213,7 @@ mod tests {
             .once()
             .returning(move |_| Err(ApiError::NotFound(format!("monitor {id} not found"))));
 
-        let response = test_app(mock)
+        let response = test_app(mock, MockCheckRepo::new())
             .oneshot(
                 Request::builder()
                     .method("GET")
@@ -231,7 +242,7 @@ mod tests {
 
         let body = serde_json::json!({ "name": "Updated Name" });
 
-        let response = test_app(mock)
+        let response = test_app(mock, MockCheckRepo::new())
             .oneshot(
                 Request::builder()
                     .method("PATCH")
@@ -261,7 +272,7 @@ mod tests {
 
         let body = serde_json::json!({ "name": "Updated Name" });
 
-        let response = test_app(mock)
+        let response = test_app(mock, MockCheckRepo::new())
             .oneshot(
                 Request::builder()
                     .method("PATCH")
@@ -288,7 +299,7 @@ mod tests {
             .once()
             .returning(|_| Ok(()));
 
-        let response = test_app(mock)
+        let response = test_app(mock, MockCheckRepo::new())
             .oneshot(
                 Request::builder()
                     .method("DELETE")
@@ -311,7 +322,7 @@ mod tests {
             .once()
             .returning(move |_| Err(ApiError::NotFound(format!("monitor {id} not found"))));
 
-        let response = test_app(mock)
+        let response = test_app(mock, MockCheckRepo::new())
             .oneshot(
                 Request::builder()
                     .method("DELETE")

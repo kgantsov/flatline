@@ -12,15 +12,16 @@ use axum::{
 };
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::db::MonitorRepository;
-use crate::monitor::engine::EngineHandle;
+use crate::db::{CheckRepository, MonitorRepository};
 use crate::error::ErrorBody;
+use crate::monitor::engine::EngineHandle;
 use shared::api::{CreateMonitorRequest, UpdateMonitorRequest};
 use shared::models::{Monitor, MonitorConfig};
 
 #[derive(Clone)]
 pub struct AppState {
     pub monitors: Arc<dyn MonitorRepository>,
+    pub checks: Arc<dyn CheckRepository>,
     pub engine: EngineHandle,
 }
 

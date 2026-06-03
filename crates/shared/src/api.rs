@@ -1,7 +1,27 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use uuid::Uuid;
 
-use crate::models::MonitorConfig;
+use crate::models::{MonitorCheckStatus, MonitorConfig};
+
+/// Request body for recording a new monitor check result.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CreateMonitorCheckRequest {
+    /// ID of the monitor this check belongs to.
+    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
+    pub monitor_id: Uuid,
+    /// Whether the monitor was up or down.
+    pub status: MonitorCheckStatus,
+    /// HTTP status code returned, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<u16>,
+    /// How long the request took, in milliseconds.
+    #[schema(example = 142)]
+    pub response_time_ms: u64,
+    /// Error message if the check failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+}
 
 /// Request body for updating an existing monitor. All fields are optional.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

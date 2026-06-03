@@ -6,7 +6,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{Level, info};
 
-use server::db::sqlite::SqliteMonitorRepository;
+use server::db::sqlite_check::SqliteCheckRepository;
+use server::db::sqlite_monitor::SqliteMonitorRepository;
 use server::{AppState, build_router};
 
 #[tokio::main]
@@ -27,7 +28,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let engine_handle = EngineHandle::new();
     let state = AppState {
-        monitors: Arc::new(SqliteMonitorRepository { pool }),
+        monitors: Arc::new(SqliteMonitorRepository { pool: pool.clone() }),
+        checks: Arc::new(SqliteCheckRepository { pool: pool.clone() }),
         engine: engine_handle.clone(),
     };
 

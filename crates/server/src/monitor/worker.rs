@@ -1,9 +1,12 @@
 use std::sync::{Arc, Mutex};
 
-use shared::models::{Monitor, MonitorConfig};
+use shared::{
+    api::CreateMonitorCheckRequest,
+    models::{Monitor, MonitorConfig},
+};
 use tokio::time::{self, Duration};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::{
     AppState,
@@ -14,7 +17,7 @@ use crate::{
 };
 
 pub struct MonitorWorker {
-    _state: AppState,
+    state: AppState,
     monitor: Monitor,
     cancellation_token: CancellationToken,
     status: Arc<Mutex<Status>>,
@@ -23,7 +26,7 @@ pub struct MonitorWorker {
 impl MonitorWorker {
     pub fn new(state: AppState, monitor: Monitor) -> Self {
         Self {
-            _state: state,
+            state,
             monitor,
             cancellation_token: CancellationToken::new(),
             status: Arc::new(Mutex::new(Status::Unknown)),
@@ -56,6 +59,7 @@ impl MonitorWorker {
         let mut interval = time::interval_at(time::Instant::now() + interval_secs, interval_secs);
 
         let status = Arc::clone(&self.status);
+        let state = self.state.clone();
 
         tokio::spawn(async move {
             let checker = Self::build_checker(&monitor);
@@ -67,8 +71,25 @@ impl MonitorWorker {
                 tokio::select! {
                     _ = token.cancelled() => break,
                     res = checker.check() => {
-                        let mut guard = status.lock().unwrap();
                         debug!("Monitor {} {} check result: {:?}", monitor.id, monitor.name, res.status);
+
+                        if let Err(e) = state.checks.create(
+                            CreateMonitorCheckRequest {
+                                monitor_id: monitor.id,
+                                status: match res.status {
+                                    Status::Up => shared::models::MonitorCheckStatus::Up,
+                                    Status::Down => shared::models::MonitorCheckStatus::Down,
+                                    Status::Unknown => shared::models::MonitorCheckStatus::Down, // Treat unknown as down for recording purposes
+                                },
+                                status_code: res.status_code,
+                                response_time_ms: res.response_time_ms,
+                                error_message: res.error.clone(),
+                            }
+                        ).await {
+                            warn!("Failed to persist check for monitor {} {}: {}", monitor.id, monitor.name, e);
+                        }
+
+                        let mut guard = status.lock().unwrap_or_else(|e| e.into_inner());
                         match *guard {
                             Status::Up => {
                                 if res.status == Status::Down {

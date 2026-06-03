@@ -12,11 +12,7 @@ pub struct HttpChecker {
 }
 
 impl HttpChecker {
-    pub fn new(
-        url: String,
-        method: Option<HttpMethod>,
-        expected_status: Option<Vec<u16>>,
-    ) -> Self {
+    pub fn new(url: String, method: Option<HttpMethod>, expected_status: Option<Vec<u16>>) -> Self {
         let method = match method.unwrap_or(HttpMethod::Get) {
             HttpMethod::Get => Method::GET,
             HttpMethod::Post => Method::POST,
@@ -38,6 +34,7 @@ impl HttpChecker {
 #[async_trait]
 impl Checker for HttpChecker {
     async fn check(&self) -> CheckOutcome {
+        let start_time = std::time::Instant::now();
         let req = self.client.request(self.method.clone(), &self.url);
 
         match req.send().await {
@@ -47,14 +44,14 @@ impl Checker for HttpChecker {
                     CheckOutcome {
                         status: Status::Up,
                         status_code: Some(status_code),
-                        response_time_ms: 100,
+                        response_time_ms: start_time.elapsed().as_millis() as u64,
                         error: None,
                     }
                 } else {
                     CheckOutcome {
                         status: Status::Down,
                         status_code: Some(status_code),
-                        response_time_ms: 100,
+                        response_time_ms: start_time.elapsed().as_millis() as u64,
                         error: Some(format!("Unexpected status code: {}", status_code)),
                     }
                 }
@@ -62,7 +59,7 @@ impl Checker for HttpChecker {
             Err(e) => CheckOutcome {
                 status: Status::Down,
                 status_code: None,
-                response_time_ms: 100,
+                response_time_ms: start_time.elapsed().as_millis() as u64,
                 error: Some(format!("Request failed: {}", e)),
             },
         }
