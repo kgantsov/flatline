@@ -52,6 +52,22 @@ impl MonitorWorker {
             "Starting monitor worker for monitor: {} {}",
             self.monitor.id, self.monitor.name
         );
+
+        let monitor_id = self.monitor.id;
+        self.state
+            .checks
+            .list_for_monitor(monitor_id, 1)
+            .await
+            .ok()
+            .and_then(|mut checks| checks.pop())
+            .map(|last_check| {
+                let mut guard = self.status.lock().unwrap_or_else(|e| e.into_inner());
+                *guard = match last_check.status {
+                    shared::models::MonitorCheckStatus::Up => Status::Up,
+                    shared::models::MonitorCheckStatus::Down => Status::Down,
+                };
+            });
+
         let token = self.cancellation_token.clone();
         let monitor = self.monitor.clone();
 
