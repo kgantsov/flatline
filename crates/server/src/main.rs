@@ -1,3 +1,4 @@
+use server::db::sqlite_incident::SqliteIncidentRepository;
 use server::monitor::engine::{EngineHandle, MonitorEngine};
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
@@ -30,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState {
         monitors: Arc::new(SqliteMonitorRepository { pool: pool.clone() }),
         checks: Arc::new(SqliteCheckRepository { pool: pool.clone() }),
+        incidents: Arc::new(SqliteIncidentRepository { pool: pool.clone() }),
         engine: engine_handle.clone(),
     };
 

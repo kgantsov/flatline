@@ -24,8 +24,7 @@ impl MonitorRepository for SqliteMonitorRepository {
         let interval = input.interval as i64;
         let timeout = input.timeout as i64;
         let enabled_int = enabled as i64;
-        let config_json = serde_json::to_string(&input.config)
-            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let config_json = serde_json::to_string(&input.config)?;
 
         sqlx::query(
             "INSERT INTO monitors (id, name, config, interval, timeout, enabled, created_at, updated_at)
@@ -40,8 +39,7 @@ impl MonitorRepository for SqliteMonitorRepository {
         .bind(&created_at_str)
         .bind(&created_at_str)
         .execute(&self.pool)
-        .await
-        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        .await?;
 
         Ok(Monitor {
             id,
@@ -60,8 +58,7 @@ impl MonitorRepository for SqliteMonitorRepository {
             "SELECT id, name, config, interval, timeout, enabled, created_at, updated_at FROM monitors LIMIT 100"
         )
         .fetch_all(&self.pool)
-        .await
-        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        .await?;
 
         let monitors = rows
             .into_iter()
@@ -92,36 +89,26 @@ impl MonitorRepository for SqliteMonitorRepository {
     }
 
     async fn get(&self, id: Uuid) -> Result<Monitor, ApiError> {
-        let id = id.to_string();
+        let id_str = id.to_string();
         let row = sqlx::query!(
-            "SELECT id, name, config, interval, timeout, enabled, created_at, updated_at FROM monitors WHERE id = ? LIMIT 1",
-            id,
+            "SELECT id, name, config, interval, timeout, enabled, created_at, updated_at
+             FROM monitors WHERE id = ? LIMIT 1",
+            id_str,
         )
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|e| match e {
-            sqlx::Error::RowNotFound => ApiError::NotFound(format!("Monitor {} not found", id)),
-            _ => ApiError::InternalServerError(e.to_string()),
-        })?;
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("monitor {id} not found")))?;
 
-        let monitor = Monitor {
-            id: Uuid::parse_str(&row.id)
-                .map_err(|e| ApiError::InternalServerError(e.to_string()))?,
+        Ok(Monitor {
+            id: Uuid::parse_str(&row.id)?,
             name: row.name,
-            config: serde_json::from_str(&row.config)
-                .map_err(|e| ApiError::InternalServerError(e.to_string()))?,
+            config: serde_json::from_str(&row.config)?,
             interval: row.interval as u32,
             timeout: row.timeout as u32,
             enabled: row.enabled != 0,
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
-                .map_err(|e| ApiError::InternalServerError(e.to_string()))?
-                .with_timezone(&Utc),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at)
-                .map_err(|e| ApiError::InternalServerError(e.to_string()))?
-                .with_timezone(&Utc),
-        };
-
-        Ok(monitor)
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)?.with_timezone(&Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at)?.with_timezone(&Utc),
+        })
     }
 
     async fn update(&self, id: Uuid, input: UpdateMonitorRequest) -> Result<Monitor, ApiError> {
@@ -135,8 +122,7 @@ impl MonitorRepository for SqliteMonitorRepository {
         let interval = input.interval.unwrap_or(existing.interval);
         let timeout = input.timeout.unwrap_or(existing.timeout);
         let enabled = input.enabled.unwrap_or(existing.enabled);
-        let config_json = serde_json::to_string(&config)
-            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let config_json = serde_json::to_string(&config)?;
 
         sqlx::query(
             "UPDATE monitors SET name = ?, config = ?, interval = ?, timeout = ?, enabled = ?, updated_at = ? WHERE id = ?",
@@ -149,8 +135,7 @@ impl MonitorRepository for SqliteMonitorRepository {
         .bind(&updated_at_str)
         .bind(&id_str)
         .execute(&self.pool)
-        .await
-        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        .await?;
 
         Ok(Monitor {
             id,
@@ -168,8 +153,7 @@ impl MonitorRepository for SqliteMonitorRepository {
         let id = id.to_string();
         sqlx::query!("DELETE FROM monitors WHERE id = ?", id)
             .execute(&self.pool)
-            .await
-            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+            .await?;
 
         Ok(())
     }

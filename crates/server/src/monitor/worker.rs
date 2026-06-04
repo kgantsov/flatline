@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use chrono::Utc;
 use shared::{
     api::CreateMonitorCheckRequest,
     models::{Monitor, MonitorConfig},
@@ -54,19 +55,29 @@ impl MonitorWorker {
         );
 
         let monitor_id = self.monitor.id;
-        self.state
+        if let Some(last_check) = self
+            .state
             .checks
-            .list_for_monitor(monitor_id, 1)
+            .list_for_monitor(monitor_id, 1, None)
             .await
             .ok()
             .and_then(|mut checks| checks.pop())
-            .map(|last_check| {
-                let mut guard = self.status.lock().unwrap_or_else(|e| e.into_inner());
-                *guard = match last_check.status {
-                    shared::models::MonitorCheckStatus::Up => Status::Up,
-                    shared::models::MonitorCheckStatus::Down => Status::Down,
-                };
-            });
+        {
+            debug!(
+                "Last check for monitor {} {}: status={:?}, status_code={:?}, response_time_ms={}, error={:?}",
+                self.monitor.id,
+                self.monitor.name,
+                last_check.status,
+                last_check.status_code,
+                last_check.response_time_ms,
+                last_check.error_message
+            );
+            let mut guard = self.status.lock().unwrap_or_else(|e| e.into_inner());
+            *guard = match last_check.status {
+                shared::models::MonitorCheckStatus::Up => Status::Up,
+                shared::models::MonitorCheckStatus::Down => Status::Down,
+            };
+        }
 
         let token = self.cancellation_token.clone();
         let monitor = self.monitor.clone();
@@ -105,23 +116,32 @@ impl MonitorWorker {
                             warn!("Failed to persist check for monitor {} {}: {}", monitor.id, monitor.name, e);
                         }
 
-                        let mut guard = status.lock().unwrap_or_else(|e| e.into_inner());
-                        match *guard {
-                            Status::Up => {
-                                if res.status == Status::Down {
-                                    info!("Monitor went Down: {} {}", monitor.id, monitor.name);
-                                }
-                            },
-                            Status::Down => {
-                                if res.status == Status::Up {
-                                    info!("Monitor went Up: {} {}", monitor.id, monitor.name);
-                                }
-                            },
-                            Status::Unknown => {
-                                info!("Initial status for monitor {} {}: {:?}", monitor.id, monitor.name, res.status);
-                            },
+                        let (went_down, went_up) = {
+                            let mut guard = status.lock().unwrap_or_else(|e| e.into_inner());
+                            let prev = guard.clone();
+                            *guard = res.status.clone();
+
+                            match prev {
+                                Status::Up => (res.status == Status::Down, false),
+                                Status::Down => (false, res.status == Status::Up),
+                                Status::Unknown => {
+                                    info!("Initial status for monitor {} {}: {:?}", monitor.id, monitor.name, res.status);
+                                    (false, false)
+                                },
+                            }
+                        };
+
+                        if went_down {
+                            info!("Monitor went Down: {} {}", monitor.id, monitor.name);
+                            state.incidents.open(monitor.id, Utc::now()).await.ok();
                         }
-                        *guard = res.status;
+
+                        if went_up {
+                            info!("Monitor went Up: {} {}", monitor.id, monitor.name);
+                            if let Ok(Some(incident)) = state.incidents.get_open_for_monitor(monitor.id).await {
+                                state.incidents.resolve(incident.id, Utc::now()).await.ok();
+                            }
+                        }
                     }
                 }
             }

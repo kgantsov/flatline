@@ -32,6 +32,30 @@ impl std::fmt::Display for ApiError {
 
 impl std::error::Error for ApiError {}
 
+impl From<sqlx::Error> for ApiError {
+    fn from(e: sqlx::Error) -> Self {
+        ApiError::InternalServerError(e.to_string())
+    }
+}
+
+impl From<uuid::Error> for ApiError {
+    fn from(e: uuid::Error) -> Self {
+        ApiError::InternalServerError(e.to_string())
+    }
+}
+
+impl From<chrono::ParseError> for ApiError {
+    fn from(e: chrono::ParseError) -> Self {
+        ApiError::InternalServerError(e.to_string())
+    }
+}
+
+impl From<serde_json::Error> for ApiError {
+    fn from(e: serde_json::Error) -> Self {
+        ApiError::InternalServerError(e.to_string())
+    }
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         match self {

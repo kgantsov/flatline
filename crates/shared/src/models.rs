@@ -73,6 +73,22 @@ pub struct MonitorCheck {
     pub checked_at: DateTime<Utc>,
 }
 
+/// A period during which a monitor was down.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct Incident {
+    /// Unique identifier.
+    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
+    pub id: Uuid,
+    /// ID of the monitor this incident belongs to.
+    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
+    pub monitor_id: Uuid,
+    /// When the monitor first went down.
+    pub started_at: DateTime<Utc>,
+    /// When the monitor recovered. None if the incident is still open.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_at: Option<DateTime<Utc>>,
+}
+
 /// A configured uptime monitor.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Monitor {

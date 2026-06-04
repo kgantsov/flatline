@@ -38,8 +38,7 @@ impl CheckRepository for SqliteCheckRepository {
         .bind(&error_message)
         .bind(&checked_at_str)
         .execute(&self.pool)
-        .await
-        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        .await?;
 
         Ok(MonitorCheck {
             id,
@@ -52,42 +51,49 @@ impl CheckRepository for SqliteCheckRepository {
         })
     }
 
-    async fn list_for_monitor(&self, monitor_id: Uuid, limit: i64) -> Result<Vec<MonitorCheck>, ApiError> {
+    async fn list_for_monitor(
+        &self,
+        monitor_id: Uuid,
+        limit: i64,
+        before: Option<DateTime<Utc>>,
+    ) -> Result<Vec<MonitorCheck>, ApiError> {
         let monitor_id_str = monitor_id.to_string();
 
-        let rows = sqlx::query(
-            "SELECT id, monitor_id, status, status_code, response_time_ms, error_message, checked_at
-             FROM monitor_checks
-             WHERE monitor_id = ?
-             ORDER BY checked_at DESC
-             LIMIT ?",
-        )
-        .bind(&monitor_id_str)
-        .bind(limit)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let mut qb = sqlx::QueryBuilder::new(
+            "SELECT id, monitor_id, status, status_code, response_time_ms, error_message, checked_at FROM monitor_checks WHERE monitor_id = ",
+        );
+        qb.push_bind(&monitor_id_str);
+        if let Some(before) = before {
+            qb.push(" AND checked_at < ");
+            qb.push_bind(before.to_rfc3339());
+        }
+        qb.push(" ORDER BY checked_at DESC LIMIT ");
+        qb.push_bind(limit);
+
+        let rows = qb.build().fetch_all(&self.pool).await?;
 
         rows.into_iter()
             .map(|row| {
-                let id_str: String = row.try_get("id").map_err(|e| ApiError::InternalServerError(e.to_string()))?;
-                let monitor_id_str: String = row.try_get("monitor_id").map_err(|e| ApiError::InternalServerError(e.to_string()))?;
-                let status_str: String = row.try_get("status").map_err(|e| ApiError::InternalServerError(e.to_string()))?;
-                let status_code: Option<i64> = row.try_get("status_code").map_err(|e| ApiError::InternalServerError(e.to_string()))?;
-                let response_time_ms: i64 = row.try_get("response_time_ms").map_err(|e| ApiError::InternalServerError(e.to_string()))?;
-                let error_message: Option<String> = row.try_get("error_message").map_err(|e| ApiError::InternalServerError(e.to_string()))?;
-                let checked_at_str: String = row.try_get("checked_at").map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+                let id_str: String = row.try_get("id")?;
+                let monitor_id_str: String = row.try_get("monitor_id")?;
+                let status_str: String = row.try_get("status")?;
+                let status_code: Option<i64> = row.try_get("status_code")?;
+                let response_time_ms: i64 = row.try_get("response_time_ms")?;
+                let error_message: Option<String> = row.try_get("error_message")?;
+                let checked_at_str: String = row.try_get("checked_at")?;
 
-                let id = Uuid::parse_str(&id_str).map_err(|e| ApiError::InternalServerError(e.to_string()))?;
-                let monitor_id = Uuid::parse_str(&monitor_id_str).map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+                let id = Uuid::parse_str(&id_str)?;
+                let monitor_id = Uuid::parse_str(&monitor_id_str)?;
                 let status = match status_str.as_str() {
                     "up" => MonitorCheckStatus::Up,
                     "down" => MonitorCheckStatus::Down,
-                    other => return Err(ApiError::InternalServerError(format!("unknown status: {other}"))),
+                    other => {
+                        return Err(ApiError::InternalServerError(format!(
+                            "unknown status: {other}"
+                        )))
+                    }
                 };
-                let checked_at = DateTime::parse_from_rfc3339(&checked_at_str)
-                    .map_err(|e| ApiError::InternalServerError(e.to_string()))?
-                    .with_timezone(&Utc);
+                let checked_at = DateTime::parse_from_rfc3339(&checked_at_str)?.with_timezone(&Utc);
 
                 Ok(MonitorCheck {
                     id,
