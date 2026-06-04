@@ -1,6 +1,6 @@
 CREATE TABLE monitor_checks (
     id               TEXT     NOT NULL PRIMARY KEY,  -- UUID stored as text
-    monitor_id       TEXT     NOT NULL,
+    monitor_id       TEXT     NOT NULL REFERENCES monitors(id) ON DELETE CASCADE,
     status           TEXT     NOT NULL,
     status_code      INTEGER,
     response_time_ms INTEGER  NOT NULL,
