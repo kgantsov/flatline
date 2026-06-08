@@ -89,6 +89,57 @@ pub struct Incident {
     pub resolved_at: Option<DateTime<Utc>>,
 }
 
+/// Notification channel delivery configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum NotificationChannelConfig {
+    /// Send a POST request to a URL with a JSON payload.
+    Webhook {
+        /// Webhook URL to POST to.
+        #[schema(example = "https://example.com/webhook")]
+        url: String,
+    },
+    /// Send a message to a Slack channel via an incoming webhook.
+    Slack {
+        /// Slack incoming webhook URL.
+        #[schema(example = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL")]
+        webhook_url: String,
+    },
+}
+
+/// A configured notification channel.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct NotificationChannel {
+    /// Unique identifier.
+    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
+    pub id: Uuid,
+    /// Human-readable name.
+    #[schema(example = "Ops Slack")]
+    pub name: String,
+    /// Delivery configuration.
+    pub config: NotificationChannelConfig,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// A link between a monitor and a notification channel.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct MonitorNotification {
+    /// Unique identifier.
+    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
+    pub id: Uuid,
+    /// ID of the monitor.
+    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
+    pub monitor_id: Uuid,
+    /// ID of the notification channel.
+    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
+    pub channel_id: Uuid,
+    /// Whether to also send a notification when the monitor recovers.
+    #[schema(example = true)]
+    pub on_recovery: bool,
+    pub created_at: DateTime<Utc>,
+}
+
 /// A configured uptime monitor.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Monitor {

@@ -1,4 +1,6 @@
 use server::db::sqlite_incident::SqliteIncidentRepository;
+use server::db::sqlite_monitor_notification::SqliteMonitorNotificationRepository;
+use server::db::sqlite_notification_channel::SqliteNotificationChannelRepository;
 use server::monitor::engine::{EngineHandle, MonitorEngine};
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
@@ -34,6 +36,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         monitors: Arc::new(SqliteMonitorRepository { pool: pool.clone() }),
         checks: Arc::new(SqliteCheckRepository { pool: pool.clone() }),
         incidents: Arc::new(SqliteIncidentRepository { pool: pool.clone() }),
+        notification_channels: Arc::new(SqliteNotificationChannelRepository {
+            pool: pool.clone(),
+        }),
+        monitor_notifications: Arc::new(SqliteMonitorNotificationRepository {
+            pool: pool.clone(),
+        }),
         engine: engine_handle.clone(),
     };
 

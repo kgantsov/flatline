@@ -4,11 +4,17 @@ mod tests {
     use axum::http::{Request, StatusCode};
     use chrono::Utc;
     use http_body_util::BodyExt;
-    use server::db::{CheckRepository, IncidentRepository, MonitorRepository};
+    use server::db::{
+        CheckRepository, IncidentRepository, MonitorNotificationRepository,
+        MonitorRepository, NotificationChannelRepository,
+    };
     use server::error::ApiError;
     use server::{AppState, build_router};
-    use shared::api::{CreateMonitorCheckRequest, CreateMonitorRequest, UpdateMonitorRequest};
-    use shared::models::{Monitor, MonitorCheck};
+    use shared::api::{
+        CreateMonitorCheckRequest, CreateMonitorNotificationRequest, CreateMonitorRequest,
+        CreateNotificationChannelRequest, UpdateMonitorRequest, UpdateNotificationChannelRequest,
+    };
+    use shared::models::{Incident, Monitor, MonitorCheck, MonitorNotification, NotificationChannel};
     use std::sync::Arc;
     use tower::ServiceExt; // for `oneshot`
     use uuid::Uuid;
@@ -43,10 +49,34 @@ mod tests {
 
         #[async_trait::async_trait]
         impl IncidentRepository for IncidentRepo {
-            async fn open(&self, monitor_id: Uuid, started_at: chrono::DateTime<Utc>) -> Result<shared::models::Incident, ApiError>;
-            async fn resolve(&self, id: Uuid, resolved_at: chrono::DateTime<Utc>) -> Result<shared::models::Incident, ApiError>;
-            async fn get_open_for_monitor(&self, monitor_id: Uuid) -> Result<Option<shared::models::Incident>, ApiError>;
-            async fn list_for_monitor(&self, monitor_id: Uuid, limit: i64, before: Option<chrono::DateTime<Utc>>) -> Result<Vec<shared::models::Incident>, ApiError>;
+            async fn open(&self, monitor_id: Uuid, started_at: chrono::DateTime<Utc>) -> Result<Incident, ApiError>;
+            async fn resolve(&self, id: Uuid, resolved_at: chrono::DateTime<Utc>) -> Result<Incident, ApiError>;
+            async fn get_open_for_monitor(&self, monitor_id: Uuid) -> Result<Option<Incident>, ApiError>;
+            async fn list_for_monitor(&self, monitor_id: Uuid, limit: i64, before: Option<chrono::DateTime<Utc>>) -> Result<Vec<Incident>, ApiError>;
+        }
+    }
+
+    mock! {
+        pub NotificationChannelRepo {}
+
+        #[async_trait::async_trait]
+        impl NotificationChannelRepository for NotificationChannelRepo {
+            async fn create(&self, input: CreateNotificationChannelRequest) -> Result<NotificationChannel, ApiError>;
+            async fn list(&self) -> Result<Vec<NotificationChannel>, ApiError>;
+            async fn get(&self, id: Uuid) -> Result<NotificationChannel, ApiError>;
+            async fn update(&self, id: Uuid, input: UpdateNotificationChannelRequest) -> Result<NotificationChannel, ApiError>;
+            async fn delete(&self, id: Uuid) -> Result<(), ApiError>;
+        }
+    }
+
+    mock! {
+        pub MonitorNotificationRepo {}
+
+        #[async_trait::async_trait]
+        impl MonitorNotificationRepository for MonitorNotificationRepo {
+            async fn create(&self, monitor_id: Uuid, input: CreateMonitorNotificationRequest) -> Result<MonitorNotification, ApiError>;
+            async fn list_for_monitor(&self, monitor_id: Uuid) -> Result<Vec<MonitorNotification>, ApiError>;
+            async fn delete(&self, monitor_id: Uuid, channel_id: Uuid) -> Result<(), ApiError>;
         }
     }
 
@@ -59,6 +89,8 @@ mod tests {
             monitors: Arc::new(monitors_mock),
             checks: Arc::new(checks_mock),
             incidents: Arc::new(incidents_mock),
+            notification_channels: Arc::new(MockNotificationChannelRepo::new()),
+            monitor_notifications: Arc::new(MockMonitorNotificationRepo::new()),
             engine: server::monitor::engine::EngineHandle::new(),
         })
     }
