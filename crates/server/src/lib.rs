@@ -2,6 +2,7 @@ pub mod api;
 pub mod db;
 pub mod error;
 pub mod monitor;
+pub mod notify;
 
 use std::sync::Arc;
 use utoipa::OpenApi;

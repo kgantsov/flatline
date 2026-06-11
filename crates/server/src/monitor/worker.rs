@@ -1,13 +1,15 @@
 use std::sync::{Arc, Mutex};
 
+use crate::notify::NotificationEvent;
 use chrono::Utc;
 use shared::{
     api::CreateMonitorCheckRequest,
-    models::{Monitor, MonitorConfig},
+    models::{Monitor, MonitorConfig, NotificationChannelConfig},
 };
 use tokio::time::{self, Duration};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
+use uuid::Uuid;
 
 use crate::{
     AppState,
@@ -15,6 +17,7 @@ use crate::{
         checker::{Checker, Status},
         http::HttpChecker,
     },
+    notify::{Notifier, slack::SlackNotifier, webhook::WebhookNotifier},
 };
 
 pub struct MonitorWorker {
@@ -46,6 +49,33 @@ impl MonitorWorker {
                 expected_status.clone(),
             )),
         }
+    }
+
+    fn build_notifier(config: &NotificationChannelConfig) -> Box<dyn Notifier> {
+        match config {
+            NotificationChannelConfig::Webhook { url } => {
+                Box::new(WebhookNotifier::new(None, url.clone()))
+            }
+            NotificationChannelConfig::Slack { webhook_url } => {
+                Box::new(SlackNotifier::new(webhook_url.clone()))
+            }
+        }
+    }
+
+    async fn get_notifiers(state: AppState, monitor_id: Uuid) -> Vec<Box<dyn Notifier>> {
+        let mut notifiers: Vec<Box<dyn Notifier>> = Vec::new();
+        if let Ok(notifications) = state
+            .monitor_notifications
+            .list_for_monitor(monitor_id)
+            .await
+        {
+            for n in notifications {
+                if let Ok(channel) = state.notification_channels.get(n.channel_id).await {
+                    notifiers.push(Self::build_notifier(&channel.config));
+                }
+            }
+        }
+        notifiers
     }
 
     pub async fn start(&self) {
@@ -131,15 +161,64 @@ impl MonitorWorker {
                             }
                         };
 
+                        let notifiers: Vec<Box<dyn Notifier>> = Self::get_notifiers(
+                            state.clone(), monitor.id
+                        ).await;
+
                         if went_down {
                             info!("Monitor went Down: {} {}", monitor.id, monitor.name);
                             state.incidents.open(monitor.id, Utc::now()).await.ok();
+
+                            let event = NotificationEvent::MonitorDown {
+                                  monitor: monitor.clone(),
+                                  checked_at: Utc::now(),
+                                  error: res.error.clone().unwrap_or_default(),
+                            };
+
+                            for notifier in &notifiers {
+                                info!(
+                                    "Sending down notification for monitor {} {}: {:?}",
+                                    monitor.id,
+                                    monitor.name,
+                                    event
+                                );
+                                if let Err(e) = notifier.send(event.clone()).await {
+                                    warn!(
+                                        "Failed to send notification for monitor {} {}: {}",
+                                        monitor.id,
+                                        monitor.name,
+                                        e
+                                    );
+                                }
+                            }
                         }
 
                         if went_up {
                             info!("Monitor went Up: {} {}", monitor.id, monitor.name);
                             if let Ok(Some(incident)) = state.incidents.get_open_for_monitor(monitor.id).await {
                                 state.incidents.resolve(incident.id, Utc::now()).await.ok();
+
+                                let event = NotificationEvent::MonitorRecovered {
+                                    monitor: monitor.clone(),
+                                    incident,
+                                };
+
+                                for notifier in &notifiers {
+                                    info!(
+                                        "Sending recovery notification for monitor {} {}: {:?}",
+                                        monitor.id,
+                                        monitor.name,
+                                        event
+                                    );
+                                    if let Err(e) = notifier.send(event.clone()).await {
+                                        warn!(
+                                            "Failed to send notification for monitor {} {}: {}",
+                                            monitor.id,
+                                            monitor.name,
+                                            e
+                                        );
+                                    }
+                                }
                             }
                         }
                     }
@@ -147,6 +226,7 @@ impl MonitorWorker {
             }
         });
     }
+
     pub async fn stop(&self) {
         debug!(
             "Stopping monitor worker for monitor: {} {}",
