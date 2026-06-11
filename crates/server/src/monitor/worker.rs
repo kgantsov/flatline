@@ -47,6 +47,7 @@ impl MonitorWorker {
                 url.clone(),
                 method.clone(),
                 expected_status.clone(),
+                Duration::from_secs(monitor.timeout as u64),
             )),
         }
     }

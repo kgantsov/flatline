@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use axum::async_trait;
 use reqwest::{Client, Method};
 use shared::models::HttpMethod;
@@ -9,10 +11,16 @@ pub struct HttpChecker {
     url: String,
     method: Method,
     expected_status: Vec<u16>,
+    timeout: Duration,
 }
 
 impl HttpChecker {
-    pub fn new(url: String, method: Option<HttpMethod>, expected_status: Option<Vec<u16>>) -> Self {
+    pub fn new(
+        url: String,
+        method: Option<HttpMethod>,
+        expected_status: Option<Vec<u16>>,
+        timeout: Duration,
+    ) -> Self {
         let method = match method.unwrap_or(HttpMethod::Get) {
             HttpMethod::Get => Method::GET,
             HttpMethod::Post => Method::POST,
@@ -27,6 +35,7 @@ impl HttpChecker {
             url,
             method,
             expected_status: expected_status.unwrap_or_else(|| vec![200]),
+            timeout,
         }
     }
 }
@@ -35,7 +44,10 @@ impl HttpChecker {
 impl Checker for HttpChecker {
     async fn check(&self) -> CheckOutcome {
         let start_time = std::time::Instant::now();
-        let req = self.client.request(self.method.clone(), &self.url);
+        let req = self
+            .client
+            .request(self.method.clone(), &self.url)
+            .timeout(self.timeout);
 
         match req.send().await {
             Ok(response) => {
