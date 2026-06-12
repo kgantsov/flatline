@@ -5,8 +5,8 @@ mod tests {
     use chrono::Utc;
     use http_body_util::BodyExt;
     use server::db::{
-        CheckRepository, IncidentRepository, MonitorNotificationRepository,
-        MonitorRepository, NotificationChannelRepository,
+        CheckRepository, IncidentRepository, MonitorNotificationRepository, MonitorRepository,
+        NotificationChannelRepository,
     };
     use server::error::ApiError;
     use server::{AppState, build_router};
@@ -14,7 +14,9 @@ mod tests {
         CreateMonitorCheckRequest, CreateMonitorNotificationRequest, CreateMonitorRequest,
         CreateNotificationChannelRequest, UpdateMonitorRequest, UpdateNotificationChannelRequest,
     };
-    use shared::models::{Incident, Monitor, MonitorCheck, MonitorNotification, NotificationChannel};
+    use shared::models::{
+        Incident, Monitor, MonitorCheck, MonitorNotification, NotificationChannel,
+    };
     use std::sync::Arc;
     use tower::ServiceExt; // for `oneshot`
     use uuid::Uuid;
@@ -107,6 +109,7 @@ mod tests {
                 config: input.config,
                 interval: input.interval,
                 timeout: input.timeout,
+                retries: input.retries,
                 enabled: input.enabled.unwrap_or(true),
                 created_at: now,
                 updated_at: now,
@@ -124,6 +127,7 @@ mod tests {
             "name": "My Site",
             "config": { "type": "http", "url": "https://example.com" },
             "interval": 60,
+            "retries": 3,
             "timeout": 10,
         });
 
@@ -187,6 +191,7 @@ mod tests {
             },
             interval: 60,
             timeout: 10,
+            retries: 3,
             enabled: true,
             created_at: now,
             updated_at: now,

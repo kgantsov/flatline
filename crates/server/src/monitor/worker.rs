@@ -121,6 +121,7 @@ impl MonitorWorker {
 
         tokio::spawn(async move {
             let checker = Self::build_checker(&monitor);
+            let mut consecutive_failures: u32 = 0;
             loop {
                 tokio::select! {
                     _ = token.cancelled() => break,
@@ -150,15 +151,46 @@ impl MonitorWorker {
                         let (went_down, went_up) = {
                             let mut guard = status.lock().unwrap_or_else(|e| e.into_inner());
                             let prev = guard.clone();
-                            *guard = res.status.clone();
 
-                            match prev {
-                                Status::Up => (res.status == Status::Down, false),
-                                Status::Down => (false, res.status == Status::Up),
-                                Status::Unknown => {
-                                    info!("Initial status for monitor {} {}: {:?}", monitor.id, monitor.name, res.status);
-                                    (false, false)
-                                },
+                            match res.status {
+                                Status::Up => {
+                                    consecutive_failures = 0;
+                                    *guard = Status::Up;
+                                    match prev {
+                                        Status::Down => (false, true),
+                                        Status::Unknown => {
+                                            info!("Initial status for monitor {} {}: Up", monitor.id, monitor.name);
+                                            (false, false)
+                                        }
+                                        Status::Up => (false, false),
+                                    }
+                                }
+                                Status::Down | Status::Unknown => {
+                                    consecutive_failures += 1;
+                                    let threshold = monitor.retries + 1;
+                                    match prev {
+                                        Status::Up => {
+                                            if consecutive_failures >= threshold {
+                                                *guard = Status::Down;
+                                                (true, false)
+                                            } else {
+                                                debug!(
+                                                    "Monitor {} {} failed ({}/{}), within retry budget",
+                                                    monitor.id, monitor.name, consecutive_failures, threshold
+                                                );
+                                                (false, false)
+                                            }
+                                        }
+                                        Status::Down => (false, false),
+                                        Status::Unknown => {
+                                            if consecutive_failures >= threshold {
+                                                *guard = Status::Down;
+                                                info!("Initial status for monitor {} {}: Down", monitor.id, monitor.name);
+                                            }
+                                            (false, false)
+                                        }
+                                    }
+                                }
                             }
                         };
 

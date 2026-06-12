@@ -157,6 +157,9 @@ pub struct Monitor {
     /// Per-request timeout, in seconds.
     #[schema(example = 10)]
     pub timeout: u32,
+    /// Number of retries before marking as down.
+    #[schema(example = 3)]
+    pub retries: u32,
     /// Whether the monitor is actively running checks.
     #[schema(example = true)]
     pub enabled: bool,

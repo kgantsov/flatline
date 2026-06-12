@@ -37,6 +37,9 @@ pub struct UpdateMonitorRequest {
     /// Request timeout in seconds.
     #[schema(example = 10)]
     pub timeout: Option<u32>,
+    /// Number of retries before marking as down. Defaults to `3`.
+    #[schema(example = 3)]
+    pub retries: Option<u32>,
     /// Whether the monitor is enabled.
     #[schema(example = true)]
     pub enabled: Option<bool>,
@@ -87,6 +90,9 @@ pub struct CreateMonitorRequest {
     /// Request timeout in seconds.
     #[schema(example = 10)]
     pub timeout: u32,
+    /// Number of retries before marking as down. Defaults to `3`.
+    #[schema(example = 3)]
+    pub retries: u32,
     /// Whether to start the monitor immediately. Defaults to `true`.
     #[schema(example = true)]
     pub enabled: Option<bool>,

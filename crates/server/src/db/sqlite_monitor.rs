@@ -23,18 +23,21 @@ impl MonitorRepository for SqliteMonitorRepository {
         let enabled = input.enabled.unwrap_or(true);
         let interval = input.interval as i64;
         let timeout = input.timeout as i64;
+        let retries = input.retries as i64;
         let enabled_int = enabled as i64;
         let config_json = serde_json::to_string(&input.config)?;
 
         sqlx::query(
-            "INSERT INTO monitors (id, name, config, interval, timeout, enabled, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO monitors (
+                id, name, config, interval, timeout, retries, enabled, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&id_str)
         .bind(&input.name)
         .bind(&config_json)
         .bind(interval)
         .bind(timeout)
+        .bind(retries)
         .bind(enabled_int)
         .bind(&created_at_str)
         .bind(&created_at_str)
@@ -47,6 +50,7 @@ impl MonitorRepository for SqliteMonitorRepository {
             config: input.config,
             interval: input.interval,
             timeout: input.timeout,
+            retries: input.retries,
             enabled,
             created_at: now,
             updated_at: now,
@@ -55,7 +59,8 @@ impl MonitorRepository for SqliteMonitorRepository {
 
     async fn list(&self) -> Result<Vec<Monitor>, ApiError> {
         let rows = sqlx::query!(
-            "SELECT id, name, config, interval, timeout, enabled, created_at, updated_at FROM monitors LIMIT 100"
+            "SELECT id, name, config, interval, timeout, retries, enabled, created_at, updated_at
+             FROM monitors LIMIT 100"
         )
         .fetch_all(&self.pool)
         .await?;
@@ -78,6 +83,7 @@ impl MonitorRepository for SqliteMonitorRepository {
                     config,
                     interval: row.interval as u32,
                     timeout: row.timeout as u32,
+                    retries: row.retries as u32,
                     enabled: row.enabled != 0,
                     created_at,
                     updated_at,
@@ -91,7 +97,7 @@ impl MonitorRepository for SqliteMonitorRepository {
     async fn get(&self, id: Uuid) -> Result<Monitor, ApiError> {
         let id_str = id.to_string();
         let row = sqlx::query!(
-            "SELECT id, name, config, interval, timeout, enabled, created_at, updated_at
+            "SELECT id, name, config, interval, timeout, retries, enabled, created_at, updated_at
              FROM monitors WHERE id = ? LIMIT 1",
             id_str,
         )
@@ -105,6 +111,7 @@ impl MonitorRepository for SqliteMonitorRepository {
             config: serde_json::from_str(&row.config)?,
             interval: row.interval as u32,
             timeout: row.timeout as u32,
+            retries: row.retries as u32,
             enabled: row.enabled != 0,
             created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)?.with_timezone(&Utc),
             updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at)?.with_timezone(&Utc),
@@ -121,16 +128,18 @@ impl MonitorRepository for SqliteMonitorRepository {
         let config = input.config.unwrap_or(existing.config);
         let interval = input.interval.unwrap_or(existing.interval);
         let timeout = input.timeout.unwrap_or(existing.timeout);
+        let retries = input.retries.unwrap_or(existing.retries);
         let enabled = input.enabled.unwrap_or(existing.enabled);
         let config_json = serde_json::to_string(&config)?;
 
         sqlx::query(
-            "UPDATE monitors SET name = ?, config = ?, interval = ?, timeout = ?, enabled = ?, updated_at = ? WHERE id = ?",
+            "UPDATE monitors SET name = ?, config = ?, interval = ?, timeout = ?, retries = ?, enabled = ?, updated_at = ? WHERE id = ?",
         )
         .bind(&name)
         .bind(&config_json)
         .bind(interval as i64)
         .bind(timeout as i64)
+        .bind(retries as i64)
         .bind(enabled as i64)
         .bind(&updated_at_str)
         .bind(&id_str)
@@ -143,6 +152,7 @@ impl MonitorRepository for SqliteMonitorRepository {
             config,
             interval,
             timeout,
+            retries,
             enabled,
             created_at: existing.created_at,
             updated_at: now,
