@@ -4,8 +4,10 @@ pub mod error;
 pub mod monitor;
 pub mod notify;
 
+use dashmap::DashMap;
 use std::sync::Arc;
 use utoipa::OpenApi;
+use uuid::Uuid;
 
 use axum::{
     Router,
@@ -19,13 +21,16 @@ use crate::db::{
 };
 use crate::error::ErrorBody;
 use crate::monitor::engine::EngineHandle;
-use shared::api::{
-    CreateMonitorNotificationRequest, CreateMonitorRequest, CreateNotificationChannelRequest,
-    UpdateMonitorRequest, UpdateNotificationChannelRequest,
-};
 use shared::models::{
     HttpMethod, Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig,
     MonitorNotification, NotificationChannel, NotificationChannelConfig,
+};
+use shared::{
+    api::{
+        CreateMonitorNotificationRequest, CreateMonitorRequest, CreateNotificationChannelRequest,
+        UpdateMonitorRequest, UpdateNotificationChannelRequest,
+    },
+    models::MonitorStats,
 };
 
 #[derive(Clone)]
@@ -36,6 +41,7 @@ pub struct AppState {
     pub notification_channels: Arc<dyn NotificationChannelRepository>,
     pub monitor_notifications: Arc<dyn MonitorNotificationRepository>,
     pub engine: EngineHandle,
+    pub stats: Arc<DashMap<Uuid, MonitorStats>>,
 }
 
 #[derive(OpenApi)]

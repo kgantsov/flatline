@@ -1,10 +1,11 @@
 use std::sync::{Arc, Mutex};
 
-use crate::notify::NotificationEvent;
-use chrono::Utc;
+use crate::{monitor::checker::CheckOutcome, notify::NotificationEvent};
+use anyhow::Result;
+use chrono::{Days, Utc};
 use shared::{
     api::CreateMonitorCheckRequest,
-    models::{Monitor, MonitorConfig, NotificationChannelConfig},
+    models::{Monitor, MonitorConfig, MonitorStats, NotificationChannelConfig},
 };
 use tokio::time::{self, Duration};
 use tokio_util::sync::CancellationToken;
@@ -85,6 +86,13 @@ impl MonitorWorker {
             self.monitor.id, self.monitor.name
         );
 
+        if let Err(err) = Self::update_stats(&self.state, &self.monitor).await {
+            warn!(
+                "Failed to update stats for monitor {} {}: {}",
+                self.monitor.id, self.monitor.name, err
+            );
+        };
+
         let monitor_id = self.monitor.id;
         if let Some(last_check) = self
             .state
@@ -130,130 +138,33 @@ impl MonitorWorker {
                 tokio::select! {
                     _ = token.cancelled() => break,
                     res = checker.check() => {
-                        debug!("Monitor {} {} check result: {:?}", monitor.id, monitor.name, res.status);
+                        debug!(
+                            "Monitor {} {} check result: {:?}", monitor.id, monitor.name, res.status,
+                        );
 
-                        if let Err(e) = state.checks.create(
-                            CreateMonitorCheckRequest {
-                                monitor_id: monitor.id,
-                                status: match res.status {
-                                    Status::Up => shared::models::MonitorCheckStatus::Up,
-                                    Status::Down => shared::models::MonitorCheckStatus::Down,
-                                    Status::Unknown => shared::models::MonitorCheckStatus::Down, // Treat unknown as down for recording purposes
-                                },
-                                status_code: res.status_code,
-                                response_time_ms: res.response_time_ms,
-                                error_message: res.error.clone(),
-                            }
+                        if let Err(err) = Self::record_result(
+                            &state,
+                            &monitor,
+                            Arc::clone(&status),
+                            &res,
+                            &mut consecutive_failures
                         ).await {
-                            warn!("Failed to persist check for monitor {} {}: {}", monitor.id, monitor.name, e);
-                        }
-
-                        let (went_down, went_up) = {
-                            let mut guard = status.lock().unwrap_or_else(|e| e.into_inner());
-                            let prev = guard.clone();
-
-                            match res.status {
-                                Status::Up => {
-                                    consecutive_failures = 0;
-                                    *guard = Status::Up;
-                                    match prev {
-                                        Status::Down => (false, true),
-                                        Status::Unknown => {
-                                            info!("Initial status for monitor {} {}: Up", monitor.id, monitor.name);
-                                            (false, false)
-                                        }
-                                        Status::Up => (false, false),
-                                    }
-                                }
-                                Status::Down | Status::Unknown => {
-                                    consecutive_failures += 1;
-                                    let threshold = monitor.retries + 1;
-                                    match prev {
-                                        Status::Up => {
-                                            if consecutive_failures >= threshold {
-                                                *guard = Status::Down;
-                                                (true, false)
-                                            } else {
-                                                debug!(
-                                                    "Monitor {} {} failed ({}/{}), within retry budget",
-                                                    monitor.id, monitor.name, consecutive_failures, threshold
-                                                );
-                                                (false, false)
-                                            }
-                                        }
-                                        Status::Down => (false, false),
-                                        Status::Unknown => {
-                                            if consecutive_failures >= threshold {
-                                                *guard = Status::Down;
-                                                info!("Initial status for monitor {} {}: Down", monitor.id, monitor.name);
-                                            }
-                                            (false, false)
-                                        }
-                                    }
-                                }
-                            }
-                        };
-
-                        let notifiers: Vec<Box<dyn Notifier>> = Self::get_notifiers(
-                            state.clone(), monitor.id
-                        ).await;
-
-                        if went_down {
-                            info!("Monitor went Down: {} {}", monitor.id, monitor.name);
-                            state.incidents.open(monitor.id, Utc::now()).await.ok();
-
-                            let event = NotificationEvent::MonitorDown {
-                                  monitor: monitor.clone(),
-                                  checked_at: Utc::now(),
-                                  error: res.error.clone().unwrap_or_default(),
-                            };
-
-                            for notifier in &notifiers {
-                                info!(
-                                    "Sending down notification for monitor {} {}: {:?}",
+                                warn!(
+                                    "Failed to record check result for monitor {} {}: {}",
                                     monitor.id,
                                     monitor.name,
-                                    event
+                                    err
                                 );
-                                if let Err(e) = notifier.send(event.clone()).await {
-                                    warn!(
-                                        "Failed to send notification for monitor {} {}: {}",
-                                        monitor.id,
-                                        monitor.name,
-                                        e
-                                    );
-                                }
-                            }
-                        }
+                        };
 
-                        if went_up {
-                            info!("Monitor went Up: {} {}", monitor.id, monitor.name);
-                            if let Ok(Some(incident)) = state.incidents.get_open_for_monitor(monitor.id).await {
-                                state.incidents.resolve(incident.id, Utc::now()).await.ok();
-
-                                let event = NotificationEvent::MonitorRecovered {
-                                    monitor: monitor.clone(),
-                                    incident,
-                                };
-
-                                for notifier in &notifiers {
-                                    info!(
-                                        "Sending recovery notification for monitor {} {}: {:?}",
-                                        monitor.id,
-                                        monitor.name,
-                                        event
-                                    );
-                                    if let Err(e) = notifier.send(event.clone()).await {
-                                        warn!(
-                                            "Failed to send notification for monitor {} {}: {}",
-                                            monitor.id,
-                                            monitor.name,
-                                            e
-                                        );
-                                    }
-                                }
-                            }
-                        }
+                        if let Err(err) = Self::update_stats(&state, &monitor).await {
+                            warn!(
+                                "Failed to update stats for monitor {} {}: {}",
+                                monitor.id,
+                                monitor.name,
+                                err
+                            );
+                        };
                     }
                 }
             }
@@ -272,5 +183,201 @@ impl MonitorWorker {
         self.stop().await;
         self.cancellation_token = CancellationToken::new();
         self.start().await;
+    }
+
+    async fn update_stats(state: &AppState, monitor: &Monitor) -> Result<()> {
+        let now = Utc::now();
+        let id = monitor.id;
+        let created_at = monitor.created_at;
+
+        let (uptime_7d, uptime_30d, uptime_90d, p_7d, p_30d, p_90d) = tokio::try_join!(
+            state
+                .incidents
+                .uptime_percentage(id, created_at, now - Days::new(7)),
+            state
+                .incidents
+                .uptime_percentage(id, created_at, now - Days::new(30)),
+            state
+                .incidents
+                .uptime_percentage(id, created_at, now - Days::new(90)),
+            state.incidents.latency_percentiles(id, now - Days::new(7)),
+            state.incidents.latency_percentiles(id, now - Days::new(30)),
+            state.incidents.latency_percentiles(id, now - Days::new(90)),
+        )?;
+
+        let (p50_7d, p95_7d) = p_7d.map_or((0, 0), |p| (p.p50_ms, p.p95_ms));
+        let (p50_30d, p95_30d) = p_30d.map_or((0, 0), |p| (p.p50_ms, p.p95_ms));
+        let (p50_90d, p95_90d) = p_90d.map_or((0, 0), |p| (p.p50_ms, p.p95_ms));
+
+        state.stats.insert(
+            id,
+            MonitorStats {
+                uptime_7d: uptime_7d.unwrap_or(0.0),
+                uptime_30d: uptime_30d.unwrap_or(0.0),
+                uptime_90d: uptime_90d.unwrap_or(0.0),
+                p50_7d,
+                p95_7d,
+                p50_30d,
+                p95_30d,
+                p50_90d,
+                p95_90d,
+            },
+        );
+
+        Ok(())
+    }
+
+    async fn record_result(
+        state: &AppState,
+        monitor: &Monitor,
+        status: Arc<Mutex<Status>>,
+        res: &CheckOutcome,
+        consecutive_failures: &mut u32,
+    ) -> Result<()> {
+        if let Err(e) = state
+            .checks
+            .create(CreateMonitorCheckRequest {
+                monitor_id: monitor.id,
+                status: match res.status {
+                    Status::Up => shared::models::MonitorCheckStatus::Up,
+                    Status::Down => shared::models::MonitorCheckStatus::Down,
+                    Status::Unknown => shared::models::MonitorCheckStatus::Down, // Treat unknown as down for recording purposes
+                },
+                status_code: res.status_code,
+                response_time_ms: res.response_time_ms,
+                error_message: res.error.clone(),
+            })
+            .await
+        {
+            warn!(
+                "Failed to persist check for monitor {} {}: {}",
+                monitor.id, monitor.name, e
+            );
+        }
+
+        let (went_down, went_up) =
+            Self::validate_check_result(monitor, status, res, consecutive_failures);
+
+        if went_down {
+            info!("Monitor went Down: {} {}", monitor.id, monitor.name);
+            state.incidents.open(monitor.id, Utc::now()).await.ok();
+
+            Self::notify(
+                state,
+                monitor,
+                NotificationEvent::MonitorDown {
+                    monitor: monitor.clone(),
+                    checked_at: Utc::now(),
+                    error: res.error.clone().unwrap_or_default(),
+                },
+            )
+            .await?;
+        }
+
+        if went_up {
+            info!("Monitor went Up: {} {}", monitor.id, monitor.name);
+            if let Ok(Some(incident)) = state.incidents.get_open_for_monitor(monitor.id).await {
+                state.incidents.resolve(incident.id, Utc::now()).await.ok();
+
+                Self::notify(
+                    state,
+                    monitor,
+                    NotificationEvent::MonitorRecovered {
+                        monitor: monitor.clone(),
+                        incident,
+                    },
+                )
+                .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_check_result(
+        monitor: &Monitor,
+        status: Arc<Mutex<Status>>,
+        res: &CheckOutcome,
+        consecutive_failures: &mut u32,
+    ) -> (bool, bool) {
+        let (went_down, went_up) = {
+            let mut guard = status.lock().unwrap_or_else(|e| e.into_inner());
+            let prev = guard.clone();
+
+            match res.status {
+                Status::Up => {
+                    *consecutive_failures = 0;
+                    *guard = Status::Up;
+                    match prev {
+                        Status::Down => (false, true),
+                        Status::Unknown => {
+                            info!(
+                                "Initial status for monitor {} {}: Up",
+                                monitor.id, monitor.name
+                            );
+                            (false, false)
+                        }
+                        Status::Up => (false, false),
+                    }
+                }
+                Status::Down | Status::Unknown => {
+                    *consecutive_failures += 1;
+                    let threshold = monitor.retries + 1;
+
+                    match prev {
+                        Status::Up => {
+                            if *consecutive_failures >= threshold {
+                                *guard = Status::Down;
+                                (true, false)
+                            } else {
+                                debug!(
+                                    "Monitor {} {} failed ({}/{}), within retry budget",
+                                    monitor.id, monitor.name, consecutive_failures, threshold
+                                );
+                                (false, false)
+                            }
+                        }
+                        Status::Down => (false, false),
+                        Status::Unknown => {
+                            if *consecutive_failures >= threshold {
+                                *guard = Status::Down;
+                                info!(
+                                    "Initial status for monitor {} {}: Down",
+                                    monitor.id, monitor.name
+                                );
+                            }
+                            (false, false)
+                        }
+                    }
+                }
+            }
+        };
+
+        (went_down, went_up)
+    }
+
+    async fn notify(state: &AppState, monitor: &Monitor, event: NotificationEvent) -> Result<()> {
+        let notifiers: Vec<Box<dyn Notifier>> =
+            Self::get_notifiers(state.clone(), monitor.id).await;
+
+        for notifier in &notifiers {
+            match event {
+                NotificationEvent::MonitorDown { .. } => info!(
+                    "Sending down notification for monitor {} {}: {:?}",
+                    monitor.id, monitor.name, event
+                ),
+                NotificationEvent::MonitorRecovered { .. } => info!(
+                    "Sending recovery notification for monitor {} {}: {:?}",
+                    monitor.id, monitor.name, event
+                ),
+            }
+            if let Err(e) = notifier.send(event.clone()).await {
+                warn!(
+                    "Failed to send notification for monitor {} {}: {}",
+                    monitor.id, monitor.name, e
+                );
+            }
+        }
+        Ok(())
     }
 }

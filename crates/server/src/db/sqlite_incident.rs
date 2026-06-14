@@ -4,6 +4,7 @@ use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
 
 use shared::models::Incident;
+use shared::models::LatencyPercentiles;
 
 use crate::db::IncidentRepository;
 use crate::error::ApiError;
@@ -110,6 +111,92 @@ impl IncidentRepository for SqliteIncidentRepository {
             started_at: DateTime::parse_from_rfc3339(&started_at_str)?.with_timezone(&Utc),
             resolved_at: Some(resolved_at),
         })
+    }
+
+    async fn uptime_percentage(
+        &self,
+        monitor_id: Uuid,
+        monitor_created_at: DateTime<Utc>,
+        window_start: DateTime<Utc>,
+    ) -> Result<Option<f64>, ApiError> {
+        // Clamp the window start to when the monitor actually existed.
+        let effective_start = window_start.max(monitor_created_at);
+        let effective_start_str = effective_start.to_rfc3339();
+        let monitor_id_str = monitor_id.to_string();
+
+        let row = sqlx::query(
+            "SELECT
+               (unixepoch('now') - unixepoch(?)) AS monitored_seconds,
+               COALESCE(SUM(
+                 MIN(
+                   unixepoch(COALESCE(resolved_at, datetime('now'))),
+                   unixepoch('now')
+                 ) - MAX(
+                   unixepoch(started_at),
+                   unixepoch(?)
+                 )
+               ), 0) AS downtime_seconds
+             FROM incidents
+             WHERE monitor_id = ?
+               AND started_at < datetime('now')
+               AND (resolved_at IS NULL OR resolved_at > ?)",
+        )
+        .bind(&effective_start_str)
+        .bind(&effective_start_str)
+        .bind(&monitor_id_str)
+        .bind(&effective_start_str)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let monitored_seconds: i64 = row.try_get("monitored_seconds")?;
+        if monitored_seconds <= 0 {
+            return Ok(None);
+        }
+
+        let downtime_seconds: i64 = row.try_get("downtime_seconds")?;
+        let uptime =
+            (monitored_seconds - downtime_seconds) as f64 / monitored_seconds as f64 * 100.0;
+        Ok(Some(uptime.clamp(0.0, 100.0)))
+    }
+
+    async fn latency_percentiles(
+        &self,
+        monitor_id: Uuid,
+        window_start: DateTime<Utc>,
+    ) -> Result<Option<LatencyPercentiles>, ApiError> {
+        // Clamp the window start to when the monitor actually existed.
+        // let effective_start = window_start.max(monitor_created_at);
+        let effective_start_str = window_start.to_rfc3339();
+        let monitor_id_str = monitor_id.to_string();
+
+        let row = sqlx::query(
+            "WITH ordered AS (
+               SELECT response_time_ms,
+                      ROW_NUMBER() OVER (ORDER BY response_time_ms) AS rn,
+                      COUNT(*) OVER ()                               AS total
+               FROM monitor_checks
+               WHERE monitor_id = ? AND checked_at > ?
+             )
+             SELECT
+               MAX(CASE WHEN rn * 100 <= total * 50 THEN response_time_ms END) AS p50,
+               MAX(CASE WHEN rn * 100 <= total * 95 THEN response_time_ms END) AS p95
+             FROM ordered",
+        )
+        .bind(&monitor_id_str)
+        .bind(&effective_start_str)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let p50: Option<i64> = row.try_get("p50")?;
+        let p95: Option<i64> = row.try_get("p95")?;
+
+        match (p50, p95) {
+            (Some(p50), Some(p95)) => Ok(Some(LatencyPercentiles {
+                p50_ms: p50 as u64,
+                p95_ms: p95 as u64,
+            })),
+            _ => Ok(None),
+        }
     }
 
     async fn get_open_for_monitor(&self, monitor_id: Uuid) -> Result<Option<Incident>, ApiError> {

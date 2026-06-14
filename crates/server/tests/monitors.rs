@@ -15,7 +15,8 @@ mod tests {
         CreateNotificationChannelRequest, UpdateMonitorRequest, UpdateNotificationChannelRequest,
     };
     use shared::models::{
-        Incident, Monitor, MonitorCheck, MonitorNotification, NotificationChannel,
+        Incident, LatencyPercentiles, Monitor, MonitorCheck, MonitorNotification,
+        NotificationChannel,
     };
     use std::sync::Arc;
     use tower::ServiceExt; // for `oneshot`
@@ -55,6 +56,8 @@ mod tests {
             async fn resolve(&self, id: Uuid, resolved_at: chrono::DateTime<Utc>) -> Result<Incident, ApiError>;
             async fn get_open_for_monitor(&self, monitor_id: Uuid) -> Result<Option<Incident>, ApiError>;
             async fn list_for_monitor(&self, monitor_id: Uuid, limit: i64, before: Option<chrono::DateTime<Utc>>) -> Result<Vec<Incident>, ApiError>;
+            async fn uptime_percentage(&self, monitor_id: Uuid, monitor_created_at: chrono::DateTime<Utc>, window_start: chrono::DateTime<Utc>) -> Result<Option<f64>, ApiError>;
+            async fn latency_percentiles(&self, monitor_id: Uuid, window_start: chrono::DateTime<Utc>) -> Result<Option<LatencyPercentiles>, ApiError>;
         }
     }
 
@@ -94,6 +97,7 @@ mod tests {
             notification_channels: Arc::new(MockNotificationChannelRepo::new()),
             monitor_notifications: Arc::new(MockMonitorNotificationRepo::new()),
             engine: server::monitor::engine::EngineHandle::new(),
+            stats: Arc::new(dashmap::DashMap::new()),
         })
     }
 
@@ -121,7 +125,15 @@ mod tests {
             .expect_list_for_monitor()
             .returning(|_, _, _| Ok(vec![]));
 
-        let app = test_app(mock, checks_mock, MockIncidentRepo::new());
+        let mut incidents_mock = MockIncidentRepo::new();
+        incidents_mock
+            .expect_uptime_percentage()
+            .returning(|_, _, _| Ok(None));
+        incidents_mock
+            .expect_latency_percentiles()
+            .returning(|_, _| Ok(None));
+
+        let app = test_app(mock, checks_mock, incidents_mock);
 
         let body = serde_json::json!({
             "name": "My Site",
@@ -304,9 +316,17 @@ mod tests {
             .expect_list_for_monitor()
             .returning(|_, _, _| Ok(vec![]));
 
+        let mut incidents_mock = MockIncidentRepo::new();
+        incidents_mock
+            .expect_uptime_percentage()
+            .returning(|_, _, _| Ok(None));
+        incidents_mock
+            .expect_latency_percentiles()
+            .returning(|_, _| Ok(None));
+
         let body = serde_json::json!({ "name": "Updated Name" });
 
-        let response = test_app(mock, checks_mock, MockIncidentRepo::new())
+        let response = test_app(mock, checks_mock, incidents_mock)
             .oneshot(
                 Request::builder()
                     .method("PATCH")

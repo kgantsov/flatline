@@ -1,13 +1,16 @@
+use dashmap::DashMap;
 use server::db::sqlite_incident::SqliteIncidentRepository;
 use server::db::sqlite_monitor_notification::SqliteMonitorNotificationRepository;
 use server::db::sqlite_notification_channel::SqliteNotificationChannelRepository;
 use server::monitor::engine::{EngineHandle, MonitorEngine};
+use shared::models::MonitorStats;
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{Level, info};
+use uuid::Uuid;
 
 use server::db::sqlite_check::SqliteCheckRepository;
 use server::db::sqlite_monitor::SqliteMonitorRepository;
@@ -36,13 +39,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         monitors: Arc::new(SqliteMonitorRepository { pool: pool.clone() }),
         checks: Arc::new(SqliteCheckRepository { pool: pool.clone() }),
         incidents: Arc::new(SqliteIncidentRepository { pool: pool.clone() }),
-        notification_channels: Arc::new(SqliteNotificationChannelRepository {
-            pool: pool.clone(),
-        }),
-        monitor_notifications: Arc::new(SqliteMonitorNotificationRepository {
-            pool: pool.clone(),
-        }),
+        notification_channels: Arc::new(SqliteNotificationChannelRepository { pool: pool.clone() }),
+        monitor_notifications: Arc::new(SqliteMonitorNotificationRepository { pool: pool.clone() }),
         engine: engine_handle.clone(),
+        stats: Arc::new(DashMap::<Uuid, MonitorStats>::new()),
     };
 
     let mut engine = MonitorEngine::new(state.clone(), engine_handle);

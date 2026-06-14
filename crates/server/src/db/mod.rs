@@ -11,7 +11,9 @@ use shared::api::{
     CreateMonitorCheckRequest, CreateMonitorNotificationRequest, CreateMonitorRequest,
     CreateNotificationChannelRequest, UpdateMonitorRequest, UpdateNotificationChannelRequest,
 };
-use shared::models::{Incident, Monitor, MonitorCheck, MonitorNotification, NotificationChannel};
+use shared::models::{
+    Incident, LatencyPercentiles, Monitor, MonitorCheck, MonitorNotification, NotificationChannel,
+};
 use uuid::Uuid;
 
 use crate::error::ApiError;
@@ -76,14 +78,27 @@ pub trait IncidentRepository: Send + Sync {
     async fn open(&self, monitor_id: Uuid, started_at: DateTime<Utc>)
     -> Result<Incident, ApiError>;
     async fn resolve(&self, id: Uuid, resolved_at: DateTime<Utc>) -> Result<Incident, ApiError>;
-    async fn get_open_for_monitor(
-        &self,
-        monitor_id: Uuid,
-    ) -> Result<Option<Incident>, ApiError>;
+    async fn get_open_for_monitor(&self, monitor_id: Uuid) -> Result<Option<Incident>, ApiError>;
     async fn list_for_monitor(
         &self,
         monitor_id: Uuid,
         limit: i64,
         before: Option<DateTime<Utc>>,
     ) -> Result<Vec<Incident>, ApiError>;
+    /// Returns uptime as a percentage (0.0–100.0) over the given window, or `None` if the
+    /// monitor has no monitored time within the window (e.g. created after `window_start`).
+    /// `monitor_created_at` is used to clamp the window start so newly-created monitors don't
+    /// report artificially low uptime.
+    async fn uptime_percentage(
+        &self,
+        monitor_id: Uuid,
+        monitor_created_at: DateTime<Utc>,
+        window_start: DateTime<Utc>,
+    ) -> Result<Option<f64>, ApiError>;
+
+    async fn latency_percentiles(
+        &self,
+        monitor_id: Uuid,
+        window_start: DateTime<Utc>,
+    ) -> Result<Option<LatencyPercentiles>, ApiError>;
 }

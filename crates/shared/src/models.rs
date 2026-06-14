@@ -166,3 +166,24 @@ pub struct Monitor {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+/// Latency percentiles for a monitor over a recent time period.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct LatencyPercentiles {
+    pub p50_ms: u64,
+    pub p95_ms: u64,
+}
+
+#[derive(Default, Clone)]
+pub struct MonitorStats {
+    pub uptime_7d: f64, // 0.0–1.0
+    pub uptime_30d: f64,
+    pub uptime_90d: f64,
+    // latency percentiles in ms
+    pub p50_7d: u64,
+    pub p95_7d: u64,
+    pub p50_30d: u64,
+    pub p95_30d: u64,
+    pub p50_90d: u64,
+    pub p95_90d: u64,
+}
