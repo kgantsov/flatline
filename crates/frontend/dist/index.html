@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Flatline</title>
+        <link rel="stylesheet" href="/style-c920ca43256fdcb9.css" integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb"/>
+    <link rel="modulepreload" href="/frontend-db4599dd20973b38.js" crossorigin="anonymous" integrity="sha384-L3D22SZI9P3i+GPTB86uYFLNI/nkgr43XAZR5x2rEz5C4cZjsFMhQa10L9DhIrLM"><link rel="preload" href="/frontend-db4599dd20973b38_bg.wasm" crossorigin="anonymous" integrity="sha384-1Qr/pryErGCbTNC2sTnsHSRvXhKquIXp9s2aKh3BZu5n7xXtB/ewaohnfT/6yXIz" as="fetch" type="application/wasm"></head>
+    <body>
+<script type="module">
+import init, * as bindings from '/frontend-db4599dd20973b38.js';
+const wasm = await init({ module_or_path: '/frontend-db4599dd20973b38_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
+</html>

@@ -4,6 +4,7 @@ mod tests {
     use axum::http::{Request, StatusCode};
     use chrono::Utc;
     use http_body_util::BodyExt;
+    use server::config::Config;
     use server::db::{
         CheckRepository, IncidentRepository, MonitorNotificationRepository, MonitorRepository,
         NotificationChannelRepository,
@@ -91,6 +92,9 @@ mod tests {
         incidents_mock: MockIncidentRepo,
     ) -> axum::Router {
         build_router(AppState {
+            config: Config {
+                database_url: String::from("sqlite::memory:"),
+            },
             monitors: Arc::new(monitors_mock),
             checks: Arc::new(checks_mock),
             incidents: Arc::new(incidents_mock),

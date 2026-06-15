@@ -1,4 +1,5 @@
 pub mod api;
+pub mod config;
 pub mod db;
 pub mod error;
 pub mod monitor;
@@ -11,16 +12,22 @@ use uuid::Uuid;
 
 use axum::{
     Router,
+    http::{StatusCode, Uri, header},
+    response::IntoResponse,
     routing::{delete, get, patch, post},
 };
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::db::{
-    CheckRepository, IncidentRepository, MonitorNotificationRepository, MonitorRepository,
-    NotificationChannelRepository,
-};
 use crate::error::ErrorBody;
 use crate::monitor::engine::EngineHandle;
+use crate::{
+    config::Config,
+    db::{
+        CheckRepository, IncidentRepository, MonitorNotificationRepository, MonitorRepository,
+        NotificationChannelRepository,
+    },
+};
+use rust_embed::RustEmbed;
 use shared::models::{
     HttpMethod, Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig,
     MonitorNotification, NotificationChannel, NotificationChannelConfig,
@@ -33,8 +40,34 @@ use shared::{
     models::MonitorStats,
 };
 
+#[derive(RustEmbed)]
+#[folder = "../../dist"]
+struct Assets;
+
+async fn static_handler(uri: Uri) -> impl IntoResponse {
+    let mut path = uri.path().trim_start_matches('/').to_string();
+
+    if path.is_empty() {
+        path = "index.html".to_string();
+    }
+
+    match Assets::get(path.as_str()) {
+        Some(content) => {
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+            ([(header::CONTENT_TYPE, mime.as_ref())], content.data).into_response()
+        }
+        None => {
+            if let Some(index) = Assets::get("index.html") {
+                return ([(header::CONTENT_TYPE, "text/html")], index.data).into_response();
+            }
+            (StatusCode::NOT_FOUND, "404 Not Found").into_response()
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AppState {
+    pub config: Config,
     pub monitors: Arc<dyn MonitorRepository>,
     pub checks: Arc<dyn CheckRepository>,
     pub incidents: Arc<dyn IncidentRepository>,
@@ -148,4 +181,5 @@ pub fn build_router(state: AppState) -> Router {
         )
         .merge(SwaggerUi::new("/docs").url("/api/v1/openapi.json", ApiDoc::openapi()))
         .with_state(state)
+        .fallback(static_handler)
 }

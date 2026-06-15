@@ -1,4 +1,5 @@
 use dashmap::DashMap;
+use server::config::init_config;
 use server::db::sqlite_incident::SqliteIncidentRepository;
 use server::db::sqlite_monitor_notification::SqliteMonitorNotificationRepository;
 use server::db::sqlite_notification_channel::SqliteNotificationChannelRepository;
@@ -24,10 +25,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_level(Level::DEBUG)
         .init();
 
-    let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:flatline.db".to_string());
+    let config = init_config();
 
-    let opts = SqliteConnectOptions::from_str(&database_url)?
+    let opts = SqliteConnectOptions::from_str(&config.database_url)?
         .create_if_missing(true)
         .pragma("foreign_keys", "ON");
     let pool = SqlitePool::connect_with(opts).await?;
@@ -36,6 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let engine_handle = EngineHandle::new();
     let state = AppState {
+        config,
         monitors: Arc::new(SqliteMonitorRepository { pool: pool.clone() }),
         checks: Arc::new(SqliteCheckRepository { pool: pool.clone() }),
         incidents: Arc::new(SqliteIncidentRepository { pool: pool.clone() }),
