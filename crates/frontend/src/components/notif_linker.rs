@@ -19,7 +19,7 @@ pub fn notif_linker(props: &NotifLinkerProps) -> Html {
     let on_recovery = use_state(|| true);
 
     let linked_ids: std::collections::HashSet<_> =
-        props.notifications.iter().map(|n| n.channel_id.clone()).collect();
+        props.notifications.iter().map(|n| n.channel_id).collect();
     let available: Vec<_> = props.channels.iter().filter(|c| !linked_ids.contains(&c.id)).collect();
 
     let on_unlink = {
@@ -89,7 +89,7 @@ pub fn notif_linker(props: &NotifLinkerProps) -> Html {
                     let ch_name = ch.map(|c| c.name.as_str()).unwrap_or("Unknown");
                     let recovery_color = if n.on_recovery { "var(--up)" } else { "var(--text-muted)" };
                     let recovery_text = if n.on_recovery { "✓ recovery" } else { "– recovery" };
-                    let cid = n.channel_id.clone();
+                    let cid = n.channel_id.to_string();
                     let on_unlink = on_unlink.clone();
                     html! {
                         <div class="channel-row">
@@ -136,7 +136,7 @@ pub fn notif_linker(props: &NotifLinkerProps) -> Html {
                                         NotificationChannelConfig::Webhook { .. } => "Webhook",
                                     };
                                     html! {
-                                        <option value={c.id.clone()}>
+                                        <option value={c.id.to_string()}>
                                             { format!("{} ({})", c.name, label) }
                                         </option>
                                     }

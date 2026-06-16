@@ -79,7 +79,7 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
     {
         let load = load.clone();
         use_effect_with((), move |_| {
-            let interval = gloo_timers::callback::Interval::new(30_000, move || load());
+            let interval = gloo_timers::callback::Interval::new(30_000, load);
             move || drop(interval)
         });
     }
@@ -96,7 +96,7 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
             e.prevent_default();
             if let PageState::Loaded(data) = (*page_state).clone() {
                 let enabled = !data.monitor.enabled;
-                let id = data.monitor.id.clone();
+                let id = data.monitor.id.to_string();
                 let load = load.clone();
                 spawn_local(async move {
                     let _ = api::toggle_monitor(&id, enabled).await;
@@ -120,7 +120,7 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
         let navigator = navigator.clone();
         Callback::from(move |_: MouseEvent| {
             if let PageState::Loaded(data) = (*page_state).clone() {
-                let id = data.monitor.id.clone();
+                let id = data.monitor.id.to_string();
                 let delete_modal = delete_modal.clone();
                 let navigator = navigator.clone();
                 spawn_local(async move {

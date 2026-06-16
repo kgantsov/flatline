@@ -1,10 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
-use uuid::Uuid;
 
 /// HTTP method for an HTTP monitor.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde(rename_all = "UPPERCASE")]
 pub enum HttpMethod {
     Get,
@@ -16,13 +15,28 @@ pub enum HttpMethod {
     Options,
 }
 
+impl std::fmt::Display for HttpMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HttpMethod::Get => write!(f, "GET"),
+            HttpMethod::Post => write!(f, "POST"),
+            HttpMethod::Put => write!(f, "PUT"),
+            HttpMethod::Patch => write!(f, "PATCH"),
+            HttpMethod::Delete => write!(f, "DELETE"),
+            HttpMethod::Head => write!(f, "HEAD"),
+            HttpMethod::Options => write!(f, "OPTIONS"),
+        }
+    }
+}
+
 /// Protocol-specific monitor configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum MonitorConfig {
     Http {
         /// URL to poll.
-        #[schema(example = "https://api.example.com/health")]
+        #[cfg_attr(feature = "utoipa", schema(example = "https://api.example.com/health"))]
         url: String,
         /// HTTP method. Defaults to GET.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -34,7 +48,8 @@ pub enum MonitorConfig {
 }
 
 /// Status of a single monitor check.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum MonitorCheckStatus {
     Up,
@@ -51,21 +66,22 @@ impl std::fmt::Display for MonitorCheckStatus {
 }
 
 /// A single recorded check result for a monitor.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct MonitorCheck {
     /// Unique identifier.
-    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
-    pub id: Uuid,
+    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    pub id: uuid::Uuid,
     /// ID of the monitor that produced this check.
-    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
-    pub monitor_id: Uuid,
+    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    pub monitor_id: uuid::Uuid,
     /// Whether the monitor was up or down.
     pub status: MonitorCheckStatus,
     /// HTTP status code returned, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_code: Option<u16>,
     /// How long the request took, in milliseconds.
-    #[schema(example = 142)]
+    #[cfg_attr(feature = "utoipa", schema(example = 142))]
     pub response_time_ms: u64,
     /// Error message if the check failed.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -74,14 +90,15 @@ pub struct MonitorCheck {
 }
 
 /// A period during which a monitor was down.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct Incident {
     /// Unique identifier.
-    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
-    pub id: Uuid,
+    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    pub id: uuid::Uuid,
     /// ID of the monitor this incident belongs to.
-    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
-    pub monitor_id: Uuid,
+    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    pub monitor_id: uuid::Uuid,
     /// When the monitor first went down.
     pub started_at: DateTime<Utc>,
     /// When the monitor recovered. None if the incident is still open.
@@ -90,31 +107,33 @@ pub struct Incident {
 }
 
 /// Notification channel delivery configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum NotificationChannelConfig {
     /// Send a POST request to a URL with a JSON payload.
     Webhook {
         /// Webhook URL to POST to.
-        #[schema(example = "https://example.com/webhook")]
+        #[cfg_attr(feature = "utoipa", schema(example = "https://example.com/webhook"))]
         url: String,
     },
     /// Send a message to a Slack channel via an incoming webhook.
     Slack {
         /// Slack incoming webhook URL.
-        #[schema(example = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL")]
+        #[cfg_attr(feature = "utoipa", schema(example = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"))]
         webhook_url: String,
     },
 }
 
 /// A configured notification channel.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct NotificationChannel {
     /// Unique identifier.
-    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
-    pub id: Uuid,
+    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    pub id: uuid::Uuid,
     /// Human-readable name.
-    #[schema(example = "Ops Slack")]
+    #[cfg_attr(feature = "utoipa", schema(example = "Ops Slack"))]
     pub name: String,
     /// Delivery configuration.
     pub config: NotificationChannelConfig,
@@ -123,60 +142,63 @@ pub struct NotificationChannel {
 }
 
 /// A link between a monitor and a notification channel.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct MonitorNotification {
     /// Unique identifier.
-    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
-    pub id: Uuid,
+    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    pub id: uuid::Uuid,
     /// ID of the monitor.
-    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
-    pub monitor_id: Uuid,
+    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    pub monitor_id: uuid::Uuid,
     /// ID of the notification channel.
-    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
-    pub channel_id: Uuid,
+    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    pub channel_id: uuid::Uuid,
     /// Whether to also send a notification when the monitor recovers.
-    #[schema(example = true)]
+    #[cfg_attr(feature = "utoipa", schema(example = true))]
     pub on_recovery: bool,
     pub created_at: DateTime<Utc>,
 }
 
 /// A configured uptime monitor.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct Monitor {
     /// Unique identifier.
-    #[schema(example = "550e8400-e29b-41d4-a716-446655440000")]
-    pub id: Uuid,
+    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    pub id: uuid::Uuid,
     /// Human-readable name.
-    #[schema(example = "Production API")]
+    #[cfg_attr(feature = "utoipa", schema(example = "Production API"))]
     pub name: String,
     /// Protocol-specific configuration.
     pub config: MonitorConfig,
     /// How often to poll, in seconds.
-    #[schema(example = 60)]
+    #[cfg_attr(feature = "utoipa", schema(example = 60))]
     pub interval: u32,
     /// Per-request timeout, in seconds.
-    #[schema(example = 10)]
+    #[cfg_attr(feature = "utoipa", schema(example = 10))]
     pub timeout: u32,
     /// Number of retries before marking as down.
-    #[schema(example = 3)]
+    #[cfg_attr(feature = "utoipa", schema(example = 3))]
     pub retries: u32,
     /// Whether the monitor is actively running checks.
-    #[schema(example = true)]
+    #[cfg_attr(feature = "utoipa", schema(example = true))]
     pub enabled: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 /// Latency percentiles for a monitor over a recent time period.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct LatencyPercentiles {
     pub p50_ms: u64,
     pub p95_ms: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct User {
-    pub id: Uuid,
+    pub id: uuid::Uuid,
     pub sub: String,
     pub email: Option<String>,
     pub name: Option<String>,

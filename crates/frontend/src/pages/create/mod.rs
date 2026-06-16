@@ -47,7 +47,7 @@ pub fn create_page() -> Html {
     let name = use_state(String::new);
     let url = use_state(String::new);
     let method = use_state(|| "GET".to_string());
-    let status_codes = use_state(|| Vec::<u16>::new());
+    let status_codes = use_state(Vec::<u16>::new);
     let tag_text = use_state(String::new);
     let interval = use_state(|| 60u32);
     let timeout_secs = use_state(|| 10u32);
@@ -91,11 +91,12 @@ pub fn create_page() -> Html {
                             crate::api::MonitorConfig::Http { url: u, method: meth, expected_status } => {
                                 url.set(u.clone());
                                 if let Some(meth) = meth {
-                                    method.set(meth.clone());
+                                    method.set(meth.to_string());
                                 }
-                                if !expected_status.is_empty() {
-                                    status_codes.set(expected_status.clone());
-                                }
+                                if let Some(codes) = expected_status
+                                    && !codes.is_empty() {
+                                        status_codes.set(codes.clone());
+                                    }
                             }
                         }
                         interval.set(m.interval);
@@ -186,13 +187,12 @@ pub fn create_page() -> Html {
                 "Enter" | "," => {
                     e.prevent_default();
                     let val = (*tag_text).trim().to_string();
-                    if let Ok(n) = val.parse::<u16>() {
-                        if (100..=599).contains(&n) {
+                    if let Ok(n) = val.parse::<u16>()
+                        && (100..=599).contains(&n) {
                             let mut codes = (*status_codes).clone();
                             if !codes.contains(&n) { codes.push(n); }
                             status_codes.set(codes);
                         }
-                    }
                     tag_text.set(String::new());
                 }
                 "Backspace" if tag_text.is_empty() => {
@@ -249,9 +249,9 @@ pub fn create_page() -> Html {
             let n_ok = !(*name).trim().is_empty();
             let u_ok = is_valid_url(&url);
             let iv = *interval;
-            let iv_ok = iv >= 10 && iv <= 86400;
+            let iv_ok = (10..=86400).contains(&iv);
             let to = *timeout_secs;
-            let to_ok = to >= 1 && to <= 300;
+            let to_ok = (1..=300).contains(&to);
             let rt = *retries;
             let rt_ok = rt <= 10;
 
@@ -293,7 +293,7 @@ pub fn create_page() -> Html {
 
                 match result {
                     Ok(m) => {
-                        navigator.push(&Route::MonitorDetail { id: m.id });
+                        navigator.push(&Route::MonitorDetail { id: m.id.to_string() });
                     }
                     Err(e) => {
                         alert.set(Some(Alert::Error(format!("Failed to save monitor: {e}"))));

@@ -231,7 +231,7 @@ pub fn notifications_page() -> Html {
             let data = NotificationChannelFormData { name, config };
 
             let editing_id = match &*modal {
-                ChannelModal::Edit(ch) => Some(ch.id.clone()),
+                ChannelModal::Edit(ch) => Some(ch.id.to_string()),
                 _ => None,
             };
 
@@ -286,7 +286,7 @@ pub fn notifications_page() -> Html {
             let delete_target = delete_target.clone();
             let reload = reload.clone();
             spawn_local(async move {
-                if api::delete_channel(&ch.id).await.is_ok() {
+                if api::delete_channel(&ch.id.to_string()).await.is_ok() {
                     delete_target.set(None);
                     reload.emit(());
                 }
@@ -356,7 +356,7 @@ pub fn notifications_page() -> Html {
                         let type_key = channel_type_key(&ch.config);
                         let type_label = channel_type_label(&ch.config);
                         let url = channel_url(&ch.config).to_string();
-                        let added = fmt_date(&ch.created_at);
+                        let added = fmt_date(&ch.created_at.to_rfc3339());
                         html! {
                             <div class="channel-card">
                                 <div class="channel-info">

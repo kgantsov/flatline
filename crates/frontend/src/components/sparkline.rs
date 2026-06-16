@@ -1,4 +1,4 @@
-use crate::api::MonitorCheck;
+use crate::api::{MonitorCheck, MonitorCheckStatus};
 use crate::utils::fmt_ms;
 use yew::prelude::*;
 
@@ -15,10 +15,10 @@ pub fn sparkline(props: &SparklineProps) -> Html {
         .rev()
         .take(30)
         .map(|c| {
-            let is_up = c.status == "up";
+            let is_up = c.status == MonitorCheckStatus::Up;
             let cls = if is_up { "sparkline-bar up" } else { "sparkline-bar down" };
             let h = if is_up {
-                (100u64.saturating_sub(c.response_time_ms / 30)).max(20).min(100)
+                (100u64.saturating_sub(c.response_time_ms / 30)).clamp(20, 100)
             } else {
                 15
             };

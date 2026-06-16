@@ -1,4 +1,4 @@
-use crate::api::Incident;
+use crate::api::{Incident, MonitorCheckStatus};
 use crate::components::{MonitorCard, StatsBar};
 use super::DashboardData;
 use yew::prelude::*;
@@ -35,7 +35,7 @@ pub(super) fn dashboard(props: &DashboardProps) -> Html {
 
     for (i, (m_checks, m_incidents)) in checks.iter().zip(incidents.iter()).enumerate() {
         if let Some(latest) = m_checks.first() {
-            if latest.status == "up" {
+            if latest.status == MonitorCheckStatus::Up {
                 up_count += 1;
             } else {
                 down_count += 1;
@@ -77,7 +77,7 @@ pub(super) fn dashboard(props: &DashboardProps) -> Html {
                                     <div class="incident-item">
                                         <span class="badge badge-down">{ "DOWN" }</span>
                                         <strong>{ &monitor.name }</strong>
-                                        <span>{ format!("— down since {}", fmt_relative(&inc.started_at)) }</span>
+                                        <span>{ format!("— down since {}", fmt_relative(&inc.started_at.to_rfc3339())) }</span>
                                     </div>
                                 }
                             })}

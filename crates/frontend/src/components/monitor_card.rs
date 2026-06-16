@@ -1,4 +1,4 @@
-use crate::api::{Incident, Monitor, MonitorCheck};
+use crate::api::{Incident, Monitor, MonitorCheck, MonitorCheckStatus};
 use crate::components::Sparkline;
 use crate::utils::{fmt_ms, monitor_url, uptime_class};
 use yew::prelude::*;
@@ -15,18 +15,18 @@ pub fn monitor_card(props: &MonitorCardProps) -> Html {
     let m = &props.monitor;
     let checks = &props.checks;
 
-    let latest_status = checks.first().map(|c| c.status.as_str()).unwrap_or("unknown");
+    let latest = checks.first().map(|c| &c.status);
     let dot_class = if !m.enabled {
         "status-dot unknown"
-    } else if latest_status == "up" {
+    } else if latest == Some(&MonitorCheckStatus::Up) {
         "status-dot up"
-    } else if latest_status == "down" {
+    } else if latest == Some(&MonitorCheckStatus::Down) {
         "status-dot down"
     } else {
         "status-dot unknown"
     };
 
-    let up_checks = checks.iter().filter(|c| c.status == "up").count();
+    let up_checks = checks.iter().filter(|c| c.status == MonitorCheckStatus::Up).count();
     let uptime_pct = if checks.is_empty() {
         None
     } else {

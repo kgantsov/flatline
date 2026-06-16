@@ -1,23 +1,30 @@
-use crate::api::{Incident, Monitor, MonitorCheck, MonitorConfig, MonitorNotification, NotificationChannel};
+use super::{PageData, Tab, charts};
+use crate::api::{Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig};
 use crate::components::NotifLinker;
 use crate::utils::{fmt_date, fmt_ms, monitor_url};
-use super::{charts, PageData, Tab};
 use yew::prelude::*;
 
-fn monitor_method(m: &Monitor) -> &str {
+fn monitor_method(m: &Monitor) -> String {
     match &m.config {
-        MonitorConfig::Http { method, .. } => method.as_deref().unwrap_or("GET"),
+        MonitorConfig::Http { method, .. } => method
+            .as_ref()
+            .map(|m| m.to_string())
+            .unwrap_or_else(|| "GET".into()),
     }
 }
 
 fn calc_streak(checks: &[MonitorCheck]) -> usize {
-    if checks.is_empty() { return 0; }
+    if checks.is_empty() {
+        return 0;
+    }
     let status = &checks[0].status;
     checks.iter().take_while(|c| &c.status == status).count()
 }
 
 fn calc_p95(checks: &[MonitorCheck]) -> Option<u64> {
-    if checks.is_empty() { return None; }
+    if checks.is_empty() {
+        return None;
+    }
     let mut times: Vec<u64> = checks.iter().map(|c| c.response_time_ms).collect();
     times.sort_unstable();
     let idx = ((times.len() as f64 * 0.95) as usize).min(times.len() - 1);
@@ -38,31 +45,79 @@ pub(super) struct MonitorDetailProps {
 
 #[function_component(MonitorDetail)]
 pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
-    let PageData { monitor, checks, incidents, notifications, channels } = &props.data;
+    let PageData {
+        monitor,
+        checks,
+        incidents,
+        notifications,
+        channels,
+    } = &props.data;
 
-    let latest_status = checks.first().map(|c| c.status.as_str()).unwrap_or("unknown");
-    let badge_cls = format!("status-badge {}", if !monitor.enabled { "unknown" } else { latest_status });
-    let badge_label = if !monitor.enabled { "Paused" }
-        else if latest_status == "up" { "Operational" }
-        else if latest_status == "down" { "Down" }
-        else { "Unknown" };
+    let latest = checks.first().map(|c| &c.status);
+    let latest_str = latest
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "unknown".into());
+    let badge_cls = format!(
+        "status-badge {}",
+        if !monitor.enabled {
+            "unknown"
+        } else {
+            &latest_str
+        }
+    );
+    let badge_label = if !monitor.enabled {
+        "Paused"
+    } else if latest == Some(&MonitorCheckStatus::Up) {
+        "Operational"
+    } else if latest == Some(&MonitorCheckStatus::Down) {
+        "Down"
+    } else {
+        "Unknown"
+    };
 
-    let up_count = checks.iter().filter(|c| c.status == "up").count();
-    let uptime_pct = if checks.is_empty() { None }
-        else { Some(up_count as f64 / checks.len() as f64 * 100.0) };
-    let avg_resp = if checks.is_empty() { None }
-        else { Some(checks.iter().map(|c| c.response_time_ms).sum::<u64>() / checks.len() as u64) };
+    let up_count = checks
+        .iter()
+        .filter(|c| c.status == MonitorCheckStatus::Up)
+        .count();
+    let uptime_pct = if checks.is_empty() {
+        None
+    } else {
+        Some(up_count as f64 / checks.len() as f64 * 100.0)
+    };
+    let avg_resp = if checks.is_empty() {
+        None
+    } else {
+        Some(checks.iter().map(|c| c.response_time_ms).sum::<u64>() / checks.len() as u64)
+    };
     let p95 = calc_p95(checks);
     let streak = calc_streak(checks);
     let active_incident = incidents.iter().find(|i| i.resolved_at.is_none());
 
-    let uptime_cls = uptime_pct.map(|p| {
-        if p >= 99.0 { "stat-value good" } else if p < 95.0 { "stat-value bad" } else { "stat-value" }
-    }).unwrap_or("stat-value");
+    let uptime_cls = uptime_pct
+        .map(|p| {
+            if p >= 99.0 {
+                "stat-value good"
+            } else if p < 95.0 {
+                "stat-value bad"
+            } else {
+                "stat-value"
+            }
+        })
+        .unwrap_or("stat-value");
 
-    let streak_cls = if latest_status == "up" { "stat-value good" } else { "stat-value bad" };
+    let streak_cls = if latest == Some(&MonitorCheckStatus::Up) {
+        "stat-value good"
+    } else {
+        "stat-value bad"
+    };
 
-    let tab_cls = |t: &Tab| if *t == props.active_tab { "tab active" } else { "tab" };
+    let tab_cls = |t: &Tab| {
+        if *t == props.active_tab {
+            "tab active"
+        } else {
+            "tab"
+        }
+    };
 
     html! {
         <>
@@ -90,13 +145,13 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                 </div>
                 <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
                     <span class={badge_cls}>
-                        <span class={format!("status-dot-sm {}", latest_status)}></span>
+                        <span class={format!("status-dot-sm {}", latest_str)}></span>
                         { badge_label }
                     </span>
                     { if let Some(inc) = active_incident {
                         html! {
                             <span style="font-size:12.5px;color:var(--down);margin-top:8px">
-                                { format!("Incident ongoing — since {}", fmt_date(&inc.started_at)) }
+                                { format!("Incident ongoing — since {}", fmt_date(&inc.started_at.to_rfc3339())) }
                             </span>
                         }
                     } else { html! {} }}
@@ -124,7 +179,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                     <div class="stat-label">{ "Current streak" }</div>
                     <div class={streak_cls}>{ streak.to_string() }</div>
                     <div class="stat-sub">
-                        { if latest_status == "up" { "checks up" } else { "checks down" } }
+                        { if latest == Some(&MonitorCheckStatus::Up) { "checks up" } else { "checks down" } }
                     </div>
                 </div>
                 <div class="stat-card">
@@ -171,7 +226,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                     Tab::Notifications => html! {
                         <div class="card-body">
                             <NotifLinker
-                                monitor_id={monitor.id.clone()}
+                                monitor_id={monitor.id.to_string()}
                                 notifications={notifications.clone()}
                                 channels={channels.clone()}
                                 on_reload={props.on_reload.clone()}

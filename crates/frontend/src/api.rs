@@ -1,74 +1,9 @@
-use serde::{Deserialize, Serialize};
+pub use shared::models::{
+    Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig, MonitorNotification,
+    NotificationChannel, NotificationChannelConfig, User,
+};
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct Monitor {
-    pub id: String,
-    pub name: String,
-    pub enabled: bool,
-    pub interval: u32,
-    pub timeout: u32,
-    pub retries: u32,
-    pub config: MonitorConfig,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum MonitorConfig {
-    Http {
-        url: String,
-        #[serde(default)]
-        method: Option<String>,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        expected_status: Vec<u16>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct MonitorCheck {
-    pub status: String,
-    pub status_code: Option<u16>,
-    pub response_time_ms: u64,
-    pub error_message: Option<String>,
-    pub checked_at: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct Incident {
-    pub started_at: String,
-    pub resolved_at: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct NotificationChannel {
-    pub id: String,
-    pub name: String,
-    pub config: NotificationChannelConfig,
-    pub created_at: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum NotificationChannelConfig {
-    Webhook { url: String },
-    Slack { webhook_url: String },
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct MonitorNotification {
-    pub id: String,
-    pub channel_id: String,
-    pub on_recovery: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct User {
-    pub id: String,
-    pub sub: String,
-    pub email: Option<String>,
-    pub name: Option<String>,
-}
+use serde::Serialize;
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 
@@ -136,7 +71,9 @@ pub async fn fetch_monitor_notifications(id: &str) -> Vec<MonitorNotification> {
     if !resp.ok() {
         return vec![];
     }
-    resp.json::<Vec<MonitorNotification>>().await.unwrap_or_default()
+    resp.json::<Vec<MonitorNotification>>()
+        .await
+        .unwrap_or_default()
 }
 
 pub async fn fetch_notification_channels() -> Result<Vec<NotificationChannel>, String> {
@@ -147,7 +84,9 @@ pub async fn fetch_notification_channels() -> Result<Vec<NotificationChannel>, S
     if !resp.ok() {
         return Err(format!("HTTP {}", resp.status()));
     }
-    resp.json::<Vec<NotificationChannel>>().await.map_err(|e| e.to_string())
+    resp.json::<Vec<NotificationChannel>>()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 pub async fn fetch_all_channels() -> Vec<NotificationChannel> {
@@ -160,7 +99,9 @@ pub async fn fetch_all_channels() -> Vec<NotificationChannel> {
     if !resp.ok() {
         return vec![];
     }
-    resp.json::<Vec<NotificationChannel>>().await.unwrap_or_default()
+    resp.json::<Vec<NotificationChannel>>()
+        .await
+        .unwrap_or_default()
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -227,17 +168,16 @@ pub async fn link_channel(
     channel_id: &str,
     on_recovery: bool,
 ) -> Result<(), String> {
-    let resp = gloo_net::http::Request::post(&format!(
-        "/api/v1/monitors/{monitor_id}/notifications"
-    ))
-    .json(&LinkBody {
-        channel_id: channel_id.to_string(),
-        on_recovery,
-    })
-    .map_err(|e| e.to_string())?
-    .send()
-    .await
-    .map_err(|e| e.to_string())?;
+    let resp =
+        gloo_net::http::Request::post(&format!("/api/v1/monitors/{monitor_id}/notifications"))
+            .json(&LinkBody {
+                channel_id: channel_id.to_string(),
+                on_recovery,
+            })
+            .map_err(|e| e.to_string())?
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
     if !resp.ok() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -315,7 +255,9 @@ async fn handle_channel_response(
             .unwrap_or_else(|| format!("HTTP {}", resp.status()));
         return Err(msg);
     }
-    resp.json::<NotificationChannel>().await.map_err(|e| e.to_string())
+    resp.json::<NotificationChannel>()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 pub async fn create_channel(

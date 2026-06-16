@@ -50,11 +50,12 @@ pub fn monitors_page() -> Html {
                 };
 
                 let (checks_all, incidents_all) = {
+                    let ids: Vec<String> = monitors.iter().map(|m| m.id.to_string()).collect();
                     let mut checks_futs = Vec::new();
                     let mut incidents_futs = Vec::new();
-                    for m in &monitors {
-                        checks_futs.push(api::fetch_checks(&m.id, 30));
-                        incidents_futs.push(api::fetch_incidents(&m.id));
+                    for id in &ids {
+                        checks_futs.push(api::fetch_checks(id, 30));
+                        incidents_futs.push(api::fetch_incidents(id));
                     }
                     let mut checks_all = Vec::new();
                     for f in checks_futs {
@@ -84,13 +85,17 @@ pub fn monitors_page() -> Html {
 
     {
         let load = load.clone();
-        use_effect_with((), move |_| { load(); });
+        use_effect_with((), move |_| {
+            load();
+        });
     }
 
     {
         let load = load.clone();
         use_effect_with((), move |_| {
-            let interval = gloo_timers::callback::Interval::new(30_000, move || { load(); });
+            let interval = gloo_timers::callback::Interval::new(30_000, move || {
+                load();
+            });
             move || drop(interval)
         });
     }
