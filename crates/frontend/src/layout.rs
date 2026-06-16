@@ -39,11 +39,24 @@ pub fn layout(props: &LayoutProps) -> Html {
                     <a href="/" class={monitors_cls}>{ "Monitors" }</a>
                     <a href="/notifications" class={notifications_cls}>{ "Notifications" }</a>
                 </nav>
-                { if let Some(actions) = props.header_actions.clone() {
-                    html! { <div class="header-actions">{ actions }</div> }
-                } else {
-                    html! {}
-                }}
+                <div class="header-right">
+                    { if let Some(actions) = props.header_actions.clone() {
+                        html! { <div class="header-actions">{ actions }</div> }
+                    } else {
+                        html! {}
+                    }}
+                    <form method="post" action="/auth/logout" style="margin:0">
+                        <button type="submit" class="btn-icon" title="Logout">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round"
+                                style="width:18px;height:18px">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                <polyline points="16 17 21 12 16 7"/>
+                                <line x1="21" y1="12" x2="9" y2="12"/>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
             </header>
 
             { for props.children.iter() }

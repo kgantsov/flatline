@@ -12,6 +12,7 @@ pub enum ApiError {
     BadRequest(String),
     InternalServerError(String),
     Forbidden(String),
+    Unauthorized,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -26,6 +27,7 @@ impl std::fmt::Display for ApiError {
             ApiError::BadRequest(msg) => write!(f, "Bad request: {msg}"),
             ApiError::InternalServerError(msg) => write!(f, "Internal server error: {msg}"),
             ApiError::Forbidden(msg) => write!(f, "Forbidden: {msg}"),
+            ApiError::Unauthorized => write!(f, "Unauthorized"),
         }
     }
 }
@@ -59,17 +61,19 @@ impl From<serde_json::Error> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         match self {
+            ApiError::Unauthorized => {
+                (StatusCode::UNAUTHORIZED, Json(ErrorBody { error: "Unauthorized".into() }))
+                    .into_response()
+            }
             ApiError::Forbidden(msg) => {
                 (StatusCode::FORBIDDEN, Json(ErrorBody { error: msg })).into_response()
             }
             ApiError::NotFound(msg) => {
                 (StatusCode::NOT_FOUND, Json(ErrorBody { error: msg })).into_response()
             }
-
             ApiError::BadRequest(msg) => {
                 (StatusCode::BAD_REQUEST, Json(ErrorBody { error: msg })).into_response()
             }
-
             ApiError::InternalServerError(msg) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorBody { error: msg }),

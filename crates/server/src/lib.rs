@@ -1,4 +1,5 @@
 pub mod api;
+pub mod auth;
 pub mod config;
 pub mod db;
 pub mod error;
@@ -6,25 +7,30 @@ pub mod monitor;
 pub mod notify;
 
 use dashmap::DashMap;
+use jsonwebtoken::{DecodingKey, EncodingKey};
+use openidconnect::Nonce;
 use std::sync::Arc;
+use std::time::Instant;
 use utoipa::OpenApi;
 use uuid::Uuid;
 
 use axum::{
     Router,
     http::{StatusCode, Uri, header},
+    middleware,
     response::IntoResponse,
     routing::{delete, get, patch, post},
 };
 use utoipa_swagger_ui::SwaggerUi;
 
+use crate::auth::oidc::OidcClient;
 use crate::error::ErrorBody;
 use crate::monitor::engine::EngineHandle;
 use crate::{
     config::Config,
     db::{
         CheckRepository, IncidentRepository, MonitorNotificationRepository, MonitorRepository,
-        NotificationChannelRepository,
+        NotificationChannelRepository, UserRepository,
     },
 };
 use rust_embed::RustEmbed;
@@ -73,8 +79,14 @@ pub struct AppState {
     pub incidents: Arc<dyn IncidentRepository>,
     pub notification_channels: Arc<dyn NotificationChannelRepository>,
     pub monitor_notifications: Arc<dyn MonitorNotificationRepository>,
+    pub users: Arc<dyn UserRepository>,
     pub engine: EngineHandle,
     pub stats: Arc<DashMap<Uuid, MonitorStats>>,
+    pub oidc_client: Arc<OidcClient>,
+    pub pending_auth: Arc<DashMap<String, (Nonce, Instant)>>,
+    pub http_client: reqwest::Client,
+    pub jwt_encoding_key: Arc<EncodingKey>,
+    pub jwt_decoding_key: Arc<DecodingKey>,
 }
 
 #[derive(OpenApi)]
@@ -124,7 +136,8 @@ pub struct AppState {
 pub struct ApiDoc;
 
 pub fn build_router(state: AppState) -> Router {
-    Router::new()
+    let protected = Router::new()
+        .route("/auth/me", get(auth::handlers::me))
         .route("/api/v1/monitors", post(api::monitors::create_monitor))
         .route("/api/v1/monitors", get(api::monitors::get_monitors))
         .route(
@@ -179,6 +192,16 @@ pub fn build_router(state: AppState) -> Router {
             "/api/v1/notification-channels/:channel_id",
             delete(api::notification_channels::delete_notification_channel),
         )
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::middleware::require_auth,
+        ));
+
+    Router::new()
+        .route("/auth/login", get(auth::handlers::login))
+        .route("/auth/callback", get(auth::handlers::callback))
+        .route("/auth/logout", post(auth::handlers::logout))
+        .merge(protected)
         .merge(SwaggerUi::new("/docs").url("/api/v1/openapi.json", ApiDoc::openapi()))
         .with_state(state)
         .fallback(static_handler)

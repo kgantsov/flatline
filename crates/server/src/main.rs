@@ -1,9 +1,15 @@
 use dashmap::DashMap;
+use jsonwebtoken::{DecodingKey, EncodingKey};
+use server::auth::oidc::build_oidc_client;
 use server::config::init_config;
 use server::db::sqlite_incident::SqliteIncidentRepository;
 use server::db::sqlite_monitor_notification::SqliteMonitorNotificationRepository;
 use server::db::sqlite_notification_channel::SqliteNotificationChannelRepository;
+use server::db::sqlite_check::SqliteCheckRepository;
+use server::db::sqlite_monitor::SqliteMonitorRepository;
+use server::db::sqlite_user::SqliteUserRepository;
 use server::monitor::engine::{EngineHandle, MonitorEngine};
+use server::{AppState, build_router};
 use shared::models::MonitorStats;
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
@@ -12,10 +18,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{Level, info};
 use uuid::Uuid;
-
-use server::db::sqlite_check::SqliteCheckRepository;
-use server::db::sqlite_monitor::SqliteMonitorRepository;
-use server::{AppState, build_router};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -34,6 +36,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sqlx::migrate!("../../migrations").run(&pool).await?;
     info!("Database migrations applied");
 
+    let http_client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+
+    let oidc_client = Arc::new(
+        build_oidc_client(
+            &config.oauth_issuer_url,
+            &config.oauth_client_id,
+            &config.oauth_client_secret,
+            &config.oauth_redirect_url,
+        )
+        .await?,
+    );
+
+    let jwt_encoding_key = Arc::new(EncodingKey::from_secret(config.jwt_secret.as_bytes()));
+    let jwt_decoding_key = Arc::new(DecodingKey::from_secret(config.jwt_secret.as_bytes()));
+
     let engine_handle = EngineHandle::new();
     let state = AppState {
         config,
@@ -42,8 +61,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         incidents: Arc::new(SqliteIncidentRepository { pool: pool.clone() }),
         notification_channels: Arc::new(SqliteNotificationChannelRepository { pool: pool.clone() }),
         monitor_notifications: Arc::new(SqliteMonitorNotificationRepository { pool: pool.clone() }),
+        users: Arc::new(SqliteUserRepository { pool: pool.clone() }),
         engine: engine_handle.clone(),
         stats: Arc::new(DashMap::<Uuid, MonitorStats>::new()),
+        oidc_client,
+        pending_auth: Arc::new(DashMap::new()),
+        http_client,
+        jwt_encoding_key,
+        jwt_decoding_key,
     };
 
     let mut engine = MonitorEngine::new(state.clone(), engine_handle);

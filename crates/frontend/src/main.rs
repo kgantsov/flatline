@@ -6,6 +6,7 @@ mod routes;
 mod utils;
 
 use pages::create::CreatePage;
+use pages::login::LoginPage;
 use pages::monitor::MonitorPage;
 use pages::monitors::MonitorsPage;
 use pages::notifications::NotificationsPage;
@@ -29,13 +30,37 @@ fn switch(route: Route) -> Html {
     }
 }
 
+/// Checks /auth/me before rendering the app. Shows LoginPage if not authenticated.
+#[function_component(AuthGuard)]
+fn auth_guard() -> Html {
+    let authed = use_state(|| Option::<bool>::None);
+
+    {
+        let authed = authed.clone();
+        use_effect_with((), move |_| {
+            wasm_bindgen_futures::spawn_local(async move {
+                match api::fetch_me().await {
+                    Ok(_) => authed.set(Some(true)),
+                    Err(_) => authed.set(Some(false)),
+                }
+            });
+        });
+    }
+
+    match *authed {
+        None => html! {},
+        Some(true) => html! {
+            <BrowserRouter>
+                <Switch<Route> render={switch} />
+            </BrowserRouter>
+        },
+        Some(false) => html! { <LoginPage /> },
+    }
+}
+
 #[function_component(App)]
 fn app() -> Html {
-    html! {
-        <BrowserRouter>
-            <Switch<Route> render={switch} />
-        </BrowserRouter>
-    }
+    html! { <AuthGuard /> }
 }
 
 fn main() {

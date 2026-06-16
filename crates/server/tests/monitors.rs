@@ -4,10 +4,17 @@ mod tests {
     use axum::http::{Request, StatusCode};
     use chrono::Utc;
     use http_body_util::BodyExt;
+    use jsonwebtoken::{DecodingKey, EncodingKey, Header, encode};
+    use openidconnect::{
+        ClientId, ClientSecret, RedirectUrl,
+        core::{CoreClient, CoreProviderMetadata},
+    };
+    use server::auth::SessionClaims;
+    use server::auth::oidc::OidcClient;
     use server::config::Config;
     use server::db::{
         CheckRepository, IncidentRepository, MonitorNotificationRepository, MonitorRepository,
-        NotificationChannelRepository,
+        NotificationChannelRepository, UserRepository,
     };
     use server::error::ApiError;
     use server::{AppState, build_router};
@@ -17,7 +24,7 @@ mod tests {
     };
     use shared::models::{
         Incident, LatencyPercentiles, Monitor, MonitorCheck, MonitorNotification,
-        NotificationChannel,
+        NotificationChannel, User,
     };
     use std::sync::Arc;
     use tower::ServiceExt; // for `oneshot`
@@ -86,6 +93,57 @@ mod tests {
         }
     }
 
+    mock! {
+        pub UserRepo {}
+
+        #[async_trait::async_trait]
+        impl UserRepository for UserRepo {
+            async fn find_by_sub(&self, sub: &str) -> Result<Option<User>, ApiError>;
+            async fn find_by_id(&self, id: Uuid) -> Result<Option<User>, ApiError>;
+            async fn count(&self) -> Result<i64, ApiError>;
+            async fn create(&self, user: &User) -> Result<(), ApiError>;
+        }
+    }
+
+    const TEST_JWT_SECRET: &[u8] = b"jwt_secret";
+
+    fn fake_oidc_client() -> Arc<OidcClient> {
+        let metadata: CoreProviderMetadata = serde_json::from_value(serde_json::json!({
+            "issuer": "https://example.com",
+            "authorization_endpoint": "https://example.com/authorize",
+            "jwks_uri": "https://example.com/jwks",
+            "response_types_supported": ["code"],
+            "subject_types_supported": ["public"],
+            "id_token_signing_alg_values_supported": ["RS256"]
+        }))
+        .unwrap();
+
+        Arc::new(
+            CoreClient::from_provider_metadata(
+                metadata,
+                ClientId::new("test".to_string()),
+                Some(ClientSecret::new("test".to_string())),
+            )
+            .set_redirect_uri(
+                RedirectUrl::new("https://example.com/callback".to_string()).unwrap(),
+            ),
+        )
+    }
+
+    fn session_cookie() -> String {
+        let claims = SessionClaims {
+            sub: Uuid::now_v7().to_string(),
+            exp: 9_999_999_999,
+        };
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(TEST_JWT_SECRET),
+        )
+        .unwrap();
+        format!("session={token}")
+    }
+
     fn test_app(
         monitors_mock: MockMonitorRepo,
         checks_mock: MockCheckRepo,
@@ -94,14 +152,25 @@ mod tests {
         build_router(AppState {
             config: Config {
                 database_url: String::from("sqlite::memory:"),
+                oauth_issuer_url: String::from("https://example.com"),
+                oauth_client_id: String::from("oauth_client_id"),
+                oauth_client_secret: String::from("oauth_client_secret"),
+                oauth_redirect_url: String::from("https://example.com/callback"),
+                jwt_secret: String::from("jwt_secret"),
             },
             monitors: Arc::new(monitors_mock),
             checks: Arc::new(checks_mock),
             incidents: Arc::new(incidents_mock),
             notification_channels: Arc::new(MockNotificationChannelRepo::new()),
             monitor_notifications: Arc::new(MockMonitorNotificationRepo::new()),
+            users: Arc::new(MockUserRepo::new()),
             engine: server::monitor::engine::EngineHandle::new(),
             stats: Arc::new(dashmap::DashMap::new()),
+            oidc_client: fake_oidc_client(),
+            pending_auth: Arc::new(dashmap::DashMap::new()),
+            http_client: reqwest::Client::new(),
+            jwt_encoding_key: Arc::new(EncodingKey::from_secret(TEST_JWT_SECRET)),
+            jwt_decoding_key: Arc::new(DecodingKey::from_secret(TEST_JWT_SECRET)),
         })
     }
 
@@ -153,6 +222,7 @@ mod tests {
                     .method("POST")
                     .uri("/api/v1/monitors")
                     .header("content-type", "application/json")
+                    .header("cookie", session_cookie())
                     .body(Body::from(body.to_string()))
                     .unwrap(),
             )
@@ -184,6 +254,7 @@ mod tests {
                     .method("POST")
                     .uri("/api/v1/monitors")
                     .header("content-type", "application/json")
+                    .header("cookie", session_cookie())
                     .body(Body::from(body.to_string()))
                     .unwrap(),
             )
@@ -232,6 +303,7 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri("/api/v1/monitors")
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -265,6 +337,7 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri(format!("/api/v1/monitors/{id}"))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -293,6 +366,7 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri(format!("/api/v1/monitors/{id}"))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -336,6 +410,7 @@ mod tests {
                     .method("PATCH")
                     .uri(format!("/api/v1/monitors/{id}"))
                     .header("content-type", "application/json")
+                    .header("cookie", session_cookie())
                     .body(Body::from(body.to_string()))
                     .unwrap(),
             )
@@ -366,6 +441,7 @@ mod tests {
                     .method("PATCH")
                     .uri(format!("/api/v1/monitors/{id}"))
                     .header("content-type", "application/json")
+                    .header("cookie", session_cookie())
                     .body(Body::from(body.to_string()))
                     .unwrap(),
             )
@@ -407,6 +483,7 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri(format!("/api/v1/monitors/{monitor_id}/checks"))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -436,6 +513,7 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri(format!("/api/v1/monitors/{monitor_id}/checks?limit=10"))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -467,6 +545,7 @@ mod tests {
                     .uri(format!(
                         "/api/v1/monitors/{monitor_id}/checks?before={before_ts}"
                     ))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -492,6 +571,7 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri(format!("/api/v1/monitors/{monitor_id}/checks?limit=500"))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -529,6 +609,7 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri(format!("/api/v1/monitors/{monitor_id}/incidents"))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -557,6 +638,7 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri(format!("/api/v1/monitors/{monitor_id}/incidents"))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -585,6 +667,7 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri(format!("/api/v1/monitors/{monitor_id}/incidents?limit=10"))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -610,6 +693,7 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri(format!("/api/v1/monitors/{monitor_id}/incidents?limit=500"))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -641,6 +725,7 @@ mod tests {
                     .uri(format!(
                         "/api/v1/monitors/{monitor_id}/incidents?before={before_ts}"
                     ))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -667,6 +752,7 @@ mod tests {
                 Request::builder()
                     .method("DELETE")
                     .uri(format!("/api/v1/monitors/{id}"))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -690,6 +776,7 @@ mod tests {
                 Request::builder()
                     .method("DELETE")
                     .uri(format!("/api/v1/monitors/{id}"))
+                    .header("cookie", session_cookie())
                     .body(Body::empty())
                     .unwrap(),
             )

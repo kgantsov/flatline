@@ -62,7 +62,27 @@ pub struct MonitorNotification {
     pub on_recovery: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct User {
+    pub id: String,
+    pub sub: String,
+    pub email: Option<String>,
+    pub name: Option<String>,
+}
+
 // ── Fetch ─────────────────────────────────────────────────────────────────────
+
+pub async fn fetch_me() -> Result<User, ()> {
+    let resp = gloo_net::http::Request::get("/auth/me")
+        .send()
+        .await
+        .map_err(|_| ())?;
+    if resp.ok() {
+        resp.json::<User>().await.map_err(|_| ())
+    } else {
+        Err(())
+    }
+}
 
 pub async fn fetch_monitors() -> Result<Vec<Monitor>, String> {
     let resp = gloo_net::http::Request::get("/api/v1/monitors")

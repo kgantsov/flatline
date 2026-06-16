@@ -28,3 +28,6 @@ http-body-util = "0.1"
 mockall = "0.14.0"
 anyhow = "1.0"
 tokio-util = "0.7.18"
+openidconnect = { version = "4", default-features = false, features = ["reqwest"] }
+jsonwebtoken  = { version = "10", default-features = false, features = ["rust_crypto"] }
+axum-extra    = { version = "0.12", features = ["cookie"] }

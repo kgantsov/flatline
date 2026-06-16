@@ -174,6 +174,15 @@ pub struct LatencyPercentiles {
     pub p95_ms: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    pub id: Uuid,
+    pub sub: String,
+    pub email: Option<String>,
+    pub name: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
 #[derive(Default, Clone)]
 pub struct MonitorStats {
     pub uptime_7d: f64, // 0.0–1.0

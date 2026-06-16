@@ -3,6 +3,7 @@ pub mod sqlite_incident;
 pub mod sqlite_monitor;
 pub mod sqlite_monitor_notification;
 pub mod sqlite_notification_channel;
+pub mod sqlite_user;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -13,6 +14,7 @@ use shared::api::{
 };
 use shared::models::{
     Incident, LatencyPercentiles, Monitor, MonitorCheck, MonitorNotification, NotificationChannel,
+    User,
 };
 use uuid::Uuid;
 
@@ -70,6 +72,15 @@ pub trait MonitorNotificationRepository: Send + Sync {
         monitor_id: Uuid,
     ) -> Result<Vec<MonitorNotification>, ApiError>;
     async fn delete(&self, monitor_id: Uuid, channel_id: Uuid) -> Result<(), ApiError>;
+}
+
+#[automock]
+#[async_trait]
+pub trait UserRepository: Send + Sync {
+    async fn find_by_sub(&self, sub: &str) -> Result<Option<User>, ApiError>;
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<User>, ApiError>;
+    async fn count(&self) -> Result<i64, ApiError>;
+    async fn create(&self, user: &User) -> Result<(), ApiError>;
 }
 
 #[automock]
