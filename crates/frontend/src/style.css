@@ -540,15 +540,39 @@ footer {
 
     .monitor-card {
         grid-template-columns: auto 1fr auto;
-        grid-template-rows: auto auto;
         gap: 10px 12px;
     }
 
-    .sparkline, .monitor-interval { display: none; }
+    .sparkline, .monitor-interval, .monitor-response { display: none; }
 
-    .monitor-uptime, .monitor-response { grid-row: 2; }
+    header { grid-template-columns: 1fr auto; }
 
-    nav { display: none; }
+    nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        padding: 6px 16px;
+        gap: 8px;
+        z-index: 100;
+    }
+
+    nav a {
+        flex: 1;
+        text-align: center;
+        border-radius: var(--radius-sm);
+    }
+
+    main { padding-bottom: 70px; }
+
+    .header-actions .btn {
+        padding: 8px;
+        font-size: 0;
+        gap: 0;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1309,6 +1333,7 @@ main.narrow {
 @media (max-width: 768px) {
     .channel-card { flex-direction: column; align-items: flex-start; }
     .channel-actions { width: 100%; }
+    .channel-url { white-space: normal; word-break: break-all; }
 }
 
 /* ── Create page responsive ──────────────────── */
