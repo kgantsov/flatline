@@ -11,7 +11,9 @@ use jsonwebtoken::{DecodingKey, EncodingKey};
 use openidconnect::Nonce;
 use std::sync::Arc;
 use std::time::Instant;
-use utoipa::OpenApi;
+use tokio::sync::broadcast;
+use utoipa::{Modify, OpenApi};
+use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use uuid::Uuid;
 
 use axum::{
@@ -21,7 +23,7 @@ use axum::{
     response::IntoResponse,
     routing::{delete, get, patch, post},
 };
-use utoipa_swagger_ui::SwaggerUi;
+use utoipa_swagger_ui::{Config as SwaggerConfig, SwaggerUi};
 
 use crate::auth::oidc::OidcClient;
 use crate::error::ErrorBody;
@@ -36,7 +38,7 @@ use crate::{
 use rust_embed::RustEmbed;
 use shared::models::{
     HttpMethod, Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig,
-    MonitorNotification, NotificationChannel, NotificationChannelConfig,
+    MonitorNotification, NotificationChannel, NotificationChannelConfig, SseEvent,
 };
 use shared::{
     api::{
@@ -82,11 +84,25 @@ pub struct AppState {
     pub users: Arc<dyn UserRepository>,
     pub engine: EngineHandle,
     pub stats: Arc<DashMap<Uuid, MonitorStats>>,
+    pub event_tx: broadcast::Sender<SseEvent>,
     pub oidc_client: Arc<OidcClient>,
     pub pending_auth: Arc<DashMap<String, (Nonce, Instant)>>,
     pub http_client: reqwest::Client,
     pub jwt_encoding_key: Arc<EncodingKey>,
     pub jwt_decoding_key: Arc<DecodingKey>,
+}
+
+struct SecurityAddon;
+
+impl Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        if let Some(components) = openapi.components.as_mut() {
+            components.add_security_scheme(
+                "bearerAuth",
+                SecurityScheme::Http(Http::new(HttpAuthScheme::Bearer)),
+            );
+        }
+    }
 }
 
 #[derive(OpenApi)]
@@ -107,6 +123,7 @@ pub struct AppState {
         crate::api::notification_channels::get_notification_channel,
         crate::api::notification_channels::update_notification_channel,
         crate::api::notification_channels::delete_notification_channel,
+        crate::api::stats::stats_stream,
     ),
     components(
         schemas(
@@ -130,7 +147,10 @@ pub struct AppState {
     tags(
         (name = "monitors", description = "Monitor management"),
         (name = "notification-channels", description = "Notification channel management"),
+        (name = "stats", description = "Real-time monitor statistics"),
     ),
+    modifiers(&SecurityAddon),
+    security(("bearerAuth" = [])),
     info(title = "Flatline API", version = "0.1.0", description = "Open-source uptime monitor API"),
 )]
 pub struct ApiDoc;
@@ -192,6 +212,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/v1/notification-channels/:channel_id",
             delete(api::notification_channels::delete_notification_channel),
         )
+        .route("/api/v1/stats/stream", get(api::stats::stats_stream))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::middleware::require_auth,
@@ -202,7 +223,11 @@ pub fn build_router(state: AppState) -> Router {
         .route("/auth/callback", get(auth::handlers::callback))
         .route("/auth/logout", post(auth::handlers::logout))
         .merge(protected)
-        .merge(SwaggerUi::new("/docs").url("/api/v1/openapi.json", ApiDoc::openapi()))
+        .merge(
+            SwaggerUi::new("/docs")
+                .url("/api/v1/openapi.json", ApiDoc::openapi())
+                .config(SwaggerConfig::default().with_credentials(true)),
+        )
         .with_state(state)
         .fallback(static_handler)
 }

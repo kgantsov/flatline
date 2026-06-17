@@ -205,7 +205,7 @@ pub struct User {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct MonitorStats {
     pub uptime_7d: f64, // 0.0–1.0
     pub uptime_30d: f64,
@@ -217,4 +217,31 @@ pub struct MonitorStats {
     pub p95_30d: u64,
     pub p50_90d: u64,
     pub p95_90d: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum SseEvent {
+    CheckResult {
+        monitor_id: uuid::Uuid,
+        status: MonitorCheckStatus,
+        status_code: Option<u16>,
+        response_time_ms: u64,
+        checked_at: DateTime<Utc>,
+    },
+    StatsUpdate {
+        monitor_id: uuid::Uuid,
+        stats: MonitorStats,
+    },
+    IncidentOpened {
+        monitor_id: uuid::Uuid,
+        incident_id: uuid::Uuid,
+        started_at: DateTime<Utc>,
+    },
+    IncidentResolved {
+        monitor_id: uuid::Uuid,
+        incident_id: uuid::Uuid,
+        started_at: DateTime<Utc>,
+        resolved_at: DateTime<Utc>,
+    },
 }

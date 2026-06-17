@@ -2,15 +2,16 @@ use dashmap::DashMap;
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use server::auth::oidc::build_oidc_client;
 use server::config::init_config;
+use server::db::sqlite_check::SqliteCheckRepository;
 use server::db::sqlite_incident::SqliteIncidentRepository;
+use server::db::sqlite_monitor::SqliteMonitorRepository;
 use server::db::sqlite_monitor_notification::SqliteMonitorNotificationRepository;
 use server::db::sqlite_notification_channel::SqliteNotificationChannelRepository;
-use server::db::sqlite_check::SqliteCheckRepository;
-use server::db::sqlite_monitor::SqliteMonitorRepository;
 use server::db::sqlite_user::SqliteUserRepository;
 use server::monitor::engine::{EngineHandle, MonitorEngine};
 use server::{AppState, build_router};
 use shared::models::MonitorStats;
+use tokio::sync::broadcast;
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
 use std::net::SocketAddr;
@@ -53,6 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let jwt_encoding_key = Arc::new(EncodingKey::from_secret(config.jwt_secret.as_bytes()));
     let jwt_decoding_key = Arc::new(DecodingKey::from_secret(config.jwt_secret.as_bytes()));
 
+    let (event_tx, _) = broadcast::channel(256);
     let engine_handle = EngineHandle::new();
     let state = AppState {
         config,
@@ -64,6 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         users: Arc::new(SqliteUserRepository { pool: pool.clone() }),
         engine: engine_handle.clone(),
         stats: Arc::new(DashMap::<Uuid, MonitorStats>::new()),
+        event_tx,
         oidc_client,
         pending_auth: Arc::new(DashMap::new()),
         http_client,

@@ -14,14 +14,20 @@ pub async fn require_auth(
     mut req: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
-    let token = req
-        .headers()
-        .get(header::COOKIE)
+    let headers = req.headers();
+    let token = headers
+        .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            cookies
-                .split(';')
-                .find_map(|c| c.trim().strip_prefix("session="))
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .or_else(|| {
+            headers
+                .get(header::COOKIE)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|cookies| {
+                    cookies
+                        .split(';')
+                        .find_map(|c| c.trim().strip_prefix("session="))
+                })
         })
         .ok_or(ApiError::Unauthorized)?;
 

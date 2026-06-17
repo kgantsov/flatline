@@ -3159,6 +3159,7 @@ dependencies = [
  "config",
  "dashmap",
  "dotenvy",
+ "futures-util",
  "http-body-util",
  "jsonwebtoken",
  "mime_guess",
@@ -3171,6 +3172,7 @@ dependencies = [
  "shared",
  "sqlx",
  "tokio",
+ "tokio-stream",
  "tokio-util",
  "tower 0.4.13",
  "tracing",
@@ -3789,6 +3791,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

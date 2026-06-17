@@ -5,7 +5,7 @@ use anyhow::Result;
 use chrono::{Days, Utc};
 use shared::{
     api::CreateMonitorCheckRequest,
-    models::{Monitor, MonitorConfig, MonitorStats, NotificationChannelConfig},
+    models::{Monitor, MonitorConfig, MonitorStats, NotificationChannelConfig, SseEvent},
 };
 use tokio::time::{self, Duration};
 use tokio_util::sync::CancellationToken;
@@ -209,20 +209,22 @@ impl MonitorWorker {
         let (p50_30d, p95_30d) = p_30d.map_or((0, 0), |p| (p.p50_ms, p.p95_ms));
         let (p50_90d, p95_90d) = p_90d.map_or((0, 0), |p| (p.p50_ms, p.p95_ms));
 
-        state.stats.insert(
-            id,
-            MonitorStats {
-                uptime_7d: uptime_7d.unwrap_or(0.0),
-                uptime_30d: uptime_30d.unwrap_or(0.0),
-                uptime_90d: uptime_90d.unwrap_or(0.0),
-                p50_7d,
-                p95_7d,
-                p50_30d,
-                p95_30d,
-                p50_90d,
-                p95_90d,
-            },
-        );
+        let stats = MonitorStats {
+            uptime_7d: uptime_7d.unwrap_or(0.0),
+            uptime_30d: uptime_30d.unwrap_or(0.0),
+            uptime_90d: uptime_90d.unwrap_or(0.0),
+            p50_7d,
+            p95_7d,
+            p50_30d,
+            p95_30d,
+            p50_90d,
+            p95_90d,
+        };
+        state.stats.insert(id, stats.clone());
+        let _ = state.event_tx.send(SseEvent::StatsUpdate {
+            monitor_id: id,
+            stats,
+        });
 
         Ok(())
     }
@@ -234,15 +236,17 @@ impl MonitorWorker {
         res: &CheckOutcome,
         consecutive_failures: &mut u32,
     ) -> Result<()> {
+        let check_status = match res.status {
+            Status::Up => shared::models::MonitorCheckStatus::Up,
+            Status::Down | Status::Unknown => shared::models::MonitorCheckStatus::Down,
+        };
+        let checked_at = Utc::now();
+
         if let Err(e) = state
             .checks
             .create(CreateMonitorCheckRequest {
                 monitor_id: monitor.id,
-                status: match res.status {
-                    Status::Up => shared::models::MonitorCheckStatus::Up,
-                    Status::Down => shared::models::MonitorCheckStatus::Down,
-                    Status::Unknown => shared::models::MonitorCheckStatus::Down, // Treat unknown as down for recording purposes
-                },
+                status: check_status.clone(),
                 status_code: res.status_code,
                 response_time_ms: res.response_time_ms,
                 error_message: res.error.clone(),
@@ -255,19 +259,33 @@ impl MonitorWorker {
             );
         }
 
+        let _ = state.event_tx.send(SseEvent::CheckResult {
+            monitor_id: monitor.id,
+            status: check_status,
+            status_code: res.status_code,
+            response_time_ms: res.response_time_ms,
+            checked_at,
+        });
+
         let (went_down, went_up) =
             Self::validate_check_result(monitor, status, res, consecutive_failures);
 
         if went_down {
             info!("Monitor went Down: {} {}", monitor.id, monitor.name);
-            state.incidents.open(monitor.id, Utc::now()).await.ok();
+            if let Ok(incident) = state.incidents.open(monitor.id, checked_at).await {
+                let _ = state.event_tx.send(SseEvent::IncidentOpened {
+                    monitor_id: monitor.id,
+                    incident_id: incident.id,
+                    started_at: incident.started_at,
+                });
+            }
 
             Self::notify(
                 state,
                 monitor,
                 NotificationEvent::MonitorDown {
                     monitor: monitor.clone(),
-                    checked_at: Utc::now(),
+                    checked_at,
                     error: res.error.clone().unwrap_or_default(),
                 },
             )
@@ -277,7 +295,14 @@ impl MonitorWorker {
         if went_up {
             info!("Monitor went Up: {} {}", monitor.id, monitor.name);
             if let Ok(Some(incident)) = state.incidents.get_open_for_monitor(monitor.id).await {
-                state.incidents.resolve(incident.id, Utc::now()).await.ok();
+                if let Ok(resolved) = state.incidents.resolve(incident.id, checked_at).await {
+                    let _ = state.event_tx.send(SseEvent::IncidentResolved {
+                        monitor_id: monitor.id,
+                        incident_id: resolved.id,
+                        started_at: resolved.started_at,
+                        resolved_at: resolved.resolved_at.unwrap_or(checked_at),
+                    });
+                }
 
                 Self::notify(
                     state,

@@ -31,3 +31,5 @@ tokio-util = "0.7.18"
 openidconnect = { version = "4", default-features = false, features = ["reqwest"] }
 jsonwebtoken  = { version = "10", default-features = false, features = ["rust_crypto"] }
 axum-extra    = { version = "0.12", features = ["cookie"] }
+futures-util  = "0.3"
+tokio-stream  = { version = "0.1", features = ["sync"] }
