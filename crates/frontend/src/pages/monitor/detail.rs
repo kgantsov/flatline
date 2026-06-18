@@ -23,13 +23,13 @@ fn calc_streak(checks: &[MonitorCheck]) -> usize {
     checks.iter().take_while(|c| &c.status == status).count()
 }
 
-fn calc_p99(checks: &[MonitorCheck]) -> Option<u64> {
+fn calc_percentile(checks: &[MonitorCheck], pct: f64) -> Option<u64> {
     if checks.is_empty() {
         return None;
     }
     let mut times: Vec<u64> = checks.iter().map(|c| c.response_time_ms).collect();
     times.sort_unstable();
-    let idx = ((times.len() as f64 * 0.99) as usize).min(times.len() - 1);
+    let idx = ((times.len() as f64 * pct) as usize).min(times.len() - 1);
     Some(times[idx])
 }
 
@@ -136,12 +136,9 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
     } else {
         Some(up_count as f64 / checks.len() as f64 * 100.0)
     };
-    let avg_resp = if checks.is_empty() {
-        None
-    } else {
-        Some(checks.iter().map(|c| c.response_time_ms).sum::<u64>() / checks.len() as u64)
-    };
-    let p99 = calc_p99(checks);
+    let p50 = calc_percentile(checks, 0.50);
+    let p95 = calc_percentile(checks, 0.95);
+    let p99 = calc_percentile(checks, 0.99);
     let streak = calc_streak(checks);
     let active_incident = incidents.iter().find(|i| i.resolved_at.is_none());
 
@@ -210,12 +207,16 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                     <div class="stat-sub">{ "recent checks" }</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">{ "Avg response" }</div>
+                    <div class="stat-label">{ "P50 response" }</div>
                     <div class="stat-value">
-                        { avg_resp.map(fmt_ms).unwrap_or_else(|| "—".into()) }
+                        { p50.map(fmt_ms).unwrap_or_else(|| "—".into()) }
                     </div>
                     <div class="stat-sub">
-                        { p99.map(|p| format!("p99 {}", fmt_ms(p))).unwrap_or_else(|| "no data".into()) }
+                        { match (p95, p99) {
+                            (Some(p95), Some(p99)) =>
+                                format!("p95 {} · p99 {}", fmt_ms(p95), fmt_ms(p99)),
+                            _ => "no data".into(),
+                        }}
                     </div>
                 </div>
                 <div class="stat-card">
@@ -243,27 +244,21 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                             <div class={uptime_cls(ls.uptime_7d * 100.0)}>
                                 { format!("{:.2}%", ls.uptime_7d * 100.0) }
                             </div>
-                            <div class="stat-sub">
-                                { format!("{} downtime · p99 {}", fmt_downtime(ls.downtime_seconds_7d), fmt_ms(ls.p99_7d)) }
-                            </div>
+                            <div class="stat-sub">{ format!("{} downtime · p99 {}", fmt_downtime(ls.downtime_seconds_7d), fmt_ms(ls.p99_7d)) }</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-label">{ "30d uptime" }</div>
                             <div class={uptime_cls(ls.uptime_30d * 100.0)}>
                                 { format!("{:.2}%", ls.uptime_30d * 100.0) }
                             </div>
-                            <div class="stat-sub">
-                                { format!("{} downtime · p99 {}", fmt_downtime(ls.downtime_seconds_30d), fmt_ms(ls.p99_30d)) }
-                            </div>
+                            <div class="stat-sub">{ format!("{} downtime · p99 {}", fmt_downtime(ls.downtime_seconds_30d), fmt_ms(ls.p99_30d)) }</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-label">{ "90d uptime" }</div>
                             <div class={uptime_cls(ls.uptime_90d * 100.0)}>
                                 { format!("{:.2}%", ls.uptime_90d * 100.0) }
                             </div>
-                            <div class="stat-sub">
-                                { format!("{} downtime · p99 {}", fmt_downtime(ls.downtime_seconds_90d), fmt_ms(ls.p99_90d)) }
-                            </div>
+                            <div class="stat-sub">{ format!("{} downtime · p99 {}", fmt_downtime(ls.downtime_seconds_90d), fmt_ms(ls.p99_90d)) }</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-label">{ "MTTR" }</div>
