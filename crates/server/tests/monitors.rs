@@ -165,6 +165,7 @@ mod tests {
             monitor_notifications: Arc::new(MockMonitorNotificationRepo::new()),
             users: Arc::new(MockUserRepo::new()),
             engine: server::monitor::engine::EngineHandle::new(),
+            event_tx: tokio::sync::broadcast::channel(1).0,
             stats: Arc::new(dashmap::DashMap::new()),
             oidc_client: fake_oidc_client(),
             pending_auth: Arc::new(dashmap::DashMap::new()),
