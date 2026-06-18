@@ -32,11 +32,33 @@ pub(super) fn dashboard(props: &DashboardProps) -> Html {
     let DashboardData { monitors, checks, incidents } = &props.data;
     let sse = &props.sse;
 
+    // Merge live SSE incident mutations on top of the initially-loaded incidents.
+    let merged_incidents: Vec<Vec<Incident>> = monitors
+        .iter()
+        .zip(incidents.iter())
+        .map(|(m, m_incidents)| {
+            let mid = m.id.to_string();
+            if let Some(live) = sse.live_incidents.get(&mid) {
+                let mut merged = m_incidents.clone();
+                for live_inc in live {
+                    if let Some(existing) = merged.iter_mut().find(|x| x.id == live_inc.id) {
+                        existing.resolved_at = live_inc.resolved_at;
+                    } else {
+                        merged.insert(0, live_inc.clone());
+                    }
+                }
+                merged
+            } else {
+                m_incidents.clone()
+            }
+        })
+        .collect();
+
     let mut up_count = 0usize;
     let mut down_count = 0usize;
     let mut active_incidents: Vec<(usize, &Incident)> = vec![];
 
-    for (i, (m_checks, m_incidents)) in checks.iter().zip(incidents.iter()).enumerate() {
+    for (i, (m_checks, m_inc)) in checks.iter().zip(merged_incidents.iter()).enumerate() {
         let monitor = &monitors[i];
         let mid = monitor.id.to_string();
 
@@ -52,7 +74,7 @@ pub(super) fn dashboard(props: &DashboardProps) -> Html {
             down_count += 1;
         }
 
-        if let Some(inc) = m_incidents.iter().find(|i| i.resolved_at.is_none()) {
+        if let Some(inc) = m_inc.iter().find(|i| i.resolved_at.is_none()) {
             active_incidents.push((i, inc));
         }
     }
@@ -137,7 +159,7 @@ pub(super) fn dashboard(props: &DashboardProps) -> Html {
                                 <MonitorCard
                                     monitor={m.clone()}
                                     checks={card_checks}
-                                    incidents={incidents[i].clone()}
+                                    incidents={merged_incidents[i].clone()}
                                     live_status={sse.latest_status.get(&mid).cloned()}
                                     live_stats={sse.stats.get(&mid).cloned()}
                                 />
