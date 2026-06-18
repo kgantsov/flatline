@@ -205,14 +205,20 @@ impl MonitorWorker {
             state.incidents.latency_percentiles(id, now - Days::new(90)),
         )?;
 
+        let (uptime_7d, downtime_seconds_7d) = uptime_7d.unwrap_or((0.0, 0));
+        let (uptime_30d, downtime_seconds_30d) = uptime_30d.unwrap_or((0.0, 0));
+        let (uptime_90d, downtime_seconds_90d) = uptime_90d.unwrap_or((0.0, 0));
         let (p50_7d, p95_7d) = p_7d.map_or((0, 0), |p| (p.p50_ms, p.p95_ms));
         let (p50_30d, p95_30d) = p_30d.map_or((0, 0), |p| (p.p50_ms, p.p95_ms));
         let (p50_90d, p95_90d) = p_90d.map_or((0, 0), |p| (p.p50_ms, p.p95_ms));
 
         let stats = MonitorStats {
-            uptime_7d: uptime_7d.unwrap_or(0.0),
-            uptime_30d: uptime_30d.unwrap_or(0.0),
-            uptime_90d: uptime_90d.unwrap_or(0.0),
+            uptime_7d,
+            uptime_30d,
+            uptime_90d,
+            downtime_seconds_7d,
+            downtime_seconds_30d,
+            downtime_seconds_90d,
             p50_7d,
             p95_7d,
             p50_30d,

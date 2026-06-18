@@ -64,7 +64,7 @@ mod tests {
             async fn resolve(&self, id: Uuid, resolved_at: chrono::DateTime<Utc>) -> Result<Incident, ApiError>;
             async fn get_open_for_monitor(&self, monitor_id: Uuid) -> Result<Option<Incident>, ApiError>;
             async fn list_for_monitor(&self, monitor_id: Uuid, limit: i64, before: Option<chrono::DateTime<Utc>>) -> Result<Vec<Incident>, ApiError>;
-            async fn uptime_percentage(&self, monitor_id: Uuid, monitor_created_at: chrono::DateTime<Utc>, window_start: chrono::DateTime<Utc>) -> Result<Option<f64>, ApiError>;
+            async fn uptime_percentage(&self, monitor_id: Uuid, monitor_created_at: chrono::DateTime<Utc>, window_start: chrono::DateTime<Utc>) -> Result<Option<(f64, u64)>, ApiError>;
             async fn latency_percentiles(&self, monitor_id: Uuid, window_start: chrono::DateTime<Utc>) -> Result<Option<LatencyPercentiles>, ApiError>;
         }
     }

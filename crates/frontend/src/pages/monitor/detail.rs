@@ -1,5 +1,5 @@
 use super::{PageData, Tab, charts};
-use crate::api::{Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig, MonitorStats};
+use crate::api::{Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig, MonitorStats};
 use crate::components::NotifLinker;
 use crate::utils::{fmt_date, fmt_ms, monitor_url};
 use yew::prelude::*;
@@ -31,12 +31,28 @@ fn calc_p95(checks: &[MonitorCheck]) -> Option<u64> {
     Some(times[idx])
 }
 
+/// Returns (mean_seconds, resolved_incident_count), or None if no resolved incidents.
+fn calc_mttr(incidents: &[Incident]) -> Option<(u64, usize)> {
+    let resolved: Vec<u64> = incidents
+        .iter()
+        .filter_map(|i| {
+            let resolved = i.resolved_at?;
+            let secs = (resolved - i.started_at).num_seconds();
+            if secs > 0 { Some(secs as u64) } else { None }
+        })
+        .collect();
+    if resolved.is_empty() {
+        return None;
+    }
+    let mean = resolved.iter().sum::<u64>() / resolved.len() as u64;
+    Some((mean, resolved.len()))
+}
+
 fn uptime_cls(pct: f64) -> &'static str {
     if pct >= 99.0 { "stat-value good" } else if pct < 95.0 { "stat-value bad" } else { "stat-value" }
 }
 
-fn fmt_downtime(uptime_fraction: f64, days: f64) -> String {
-    let total_secs = ((1.0 - uptime_fraction) * days * 24.0 * 3600.0) as u64;
+fn fmt_downtime(total_secs: u64) -> String {
     if total_secs == 0 {
         return "0s".into();
     }
@@ -218,7 +234,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                                 { format!("{:.2}%", ls.uptime_7d * 100.0) }
                             </div>
                             <div class="stat-sub">
-                                { format!("{} downtime · p95 {}", fmt_downtime(ls.uptime_7d, 7.0), fmt_ms(ls.p95_7d)) }
+                                { format!("{} downtime · p95 {}", fmt_downtime(ls.downtime_seconds_7d), fmt_ms(ls.p95_7d)) }
                             </div>
                         </div>
                         <div class="stat-card">
@@ -227,7 +243,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                                 { format!("{:.2}%", ls.uptime_30d * 100.0) }
                             </div>
                             <div class="stat-sub">
-                                { format!("{} downtime · p95 {}", fmt_downtime(ls.uptime_30d, 30.0), fmt_ms(ls.p95_30d)) }
+                                { format!("{} downtime · p95 {}", fmt_downtime(ls.downtime_seconds_30d), fmt_ms(ls.p95_30d)) }
                             </div>
                         </div>
                         <div class="stat-card">
@@ -236,21 +252,26 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                                 { format!("{:.2}%", ls.uptime_90d * 100.0) }
                             </div>
                             <div class="stat-sub">
-                                { format!("{} downtime · p95 {}", fmt_downtime(ls.uptime_90d, 90.0), fmt_ms(ls.p95_90d)) }
+                                { format!("{} downtime · p95 {}", fmt_downtime(ls.downtime_seconds_90d), fmt_ms(ls.p95_90d)) }
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-label">{ "Last checked" }</div>
-                            <div class="stat-value">
-                                { checks.first().map(|c| {
-                                    let js_date = js_sys::Date::new(&wasm_bindgen::JsValue::from_str(&c.checked_at.to_rfc3339()));
-                                    let diff = ((js_sys::Date::now() - js_date.get_time()) / 1000.0) as i64;
-                                    if diff < 60 { format!("{}s ago", diff) }
-                                    else if diff < 3600 { format!("{}m ago", diff / 60) }
-                                    else { format!("{}h ago", diff / 3600) }
-                                }).unwrap_or_else(|| "—".into()) }
-                            </div>
-                            <div class="stat-sub">{ format!("every {}s", monitor.interval) }</div>
+                            <div class="stat-label">{ "MTTR" }</div>
+                            { if let Some((mean_secs, count)) = calc_mttr(incidents) {
+                                html! {
+                                    <>
+                                        <div class="stat-value">{ fmt_downtime(mean_secs) }</div>
+                                        <div class="stat-sub">{ format!("avg over {} incidents", count) }</div>
+                                    </>
+                                }
+                            } else {
+                                html! {
+                                    <>
+                                        <div class="stat-value">{ "—" }</div>
+                                        <div class="stat-sub">{ "no resolved incidents" }</div>
+                                    </>
+                                }
+                            }}
                         </div>
                     </div>
                 }

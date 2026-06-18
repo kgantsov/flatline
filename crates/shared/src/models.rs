@@ -210,6 +210,10 @@ pub struct MonitorStats {
     pub uptime_7d: f64, // 0.0–1.0
     pub uptime_30d: f64,
     pub uptime_90d: f64,
+    // actual downtime in seconds over each window
+    pub downtime_seconds_7d: u64,
+    pub downtime_seconds_30d: u64,
+    pub downtime_seconds_90d: u64,
     // latency percentiles in ms
     pub p50_7d: u64,
     pub p95_7d: u64,

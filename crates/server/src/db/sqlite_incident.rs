@@ -118,7 +118,7 @@ impl IncidentRepository for SqliteIncidentRepository {
         monitor_id: Uuid,
         monitor_created_at: DateTime<Utc>,
         window_start: DateTime<Utc>,
-    ) -> Result<Option<f64>, ApiError> {
+    ) -> Result<Option<(f64, u64)>, ApiError> {
         // Clamp the window start to when the monitor actually existed.
         let effective_start = window_start.max(monitor_created_at);
         let effective_start_str = effective_start.to_rfc3339();
@@ -154,9 +154,10 @@ impl IncidentRepository for SqliteIncidentRepository {
         }
 
         let downtime_seconds: i64 = row.try_get("downtime_seconds")?;
+        let downtime_seconds = downtime_seconds.max(0) as u64;
         let uptime =
-            (monitored_seconds - downtime_seconds) as f64 / monitored_seconds as f64;
-        Ok(Some(uptime.clamp(0.0, 1.0)))
+            (monitored_seconds - downtime_seconds as i64) as f64 / monitored_seconds as f64;
+        Ok(Some((uptime.clamp(0.0, 1.0), downtime_seconds)))
     }
 
     async fn latency_percentiles(

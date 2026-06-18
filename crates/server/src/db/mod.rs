@@ -100,12 +100,14 @@ pub trait IncidentRepository: Send + Sync {
     /// monitor has no monitored time within the window (e.g. created after `window_start`).
     /// `monitor_created_at` is used to clamp the window start so newly-created monitors don't
     /// report artificially low uptime.
+    /// Returns `(uptime_fraction, downtime_seconds)` over the window, or `None` if
+    /// the monitor has no monitored time within the window.
     async fn uptime_percentage(
         &self,
         monitor_id: Uuid,
         monitor_created_at: DateTime<Utc>,
         window_start: DateTime<Utc>,
-    ) -> Result<Option<f64>, ApiError>;
+    ) -> Result<Option<(f64, u64)>, ApiError>;
 
     async fn latency_percentiles(
         &self,
