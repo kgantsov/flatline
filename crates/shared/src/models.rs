@@ -70,10 +70,16 @@ impl std::fmt::Display for MonitorCheckStatus {
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct MonitorCheck {
     /// Unique identifier.
-    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    #[cfg_attr(
+        feature = "utoipa",
+        schema(example = "550e8400-e29b-41d4-a716-446655440000")
+    )]
     pub id: uuid::Uuid,
     /// ID of the monitor that produced this check.
-    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    #[cfg_attr(
+        feature = "utoipa",
+        schema(example = "550e8400-e29b-41d4-a716-446655440000")
+    )]
     pub monitor_id: uuid::Uuid,
     /// Whether the monitor was up or down.
     pub status: MonitorCheckStatus,
@@ -94,10 +100,16 @@ pub struct MonitorCheck {
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct Incident {
     /// Unique identifier.
-    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    #[cfg_attr(
+        feature = "utoipa",
+        schema(example = "550e8400-e29b-41d4-a716-446655440000")
+    )]
     pub id: uuid::Uuid,
     /// ID of the monitor this incident belongs to.
-    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    #[cfg_attr(
+        feature = "utoipa",
+        schema(example = "550e8400-e29b-41d4-a716-446655440000")
+    )]
     pub monitor_id: uuid::Uuid,
     /// When the monitor first went down.
     pub started_at: DateTime<Utc>,
@@ -120,7 +132,10 @@ pub enum NotificationChannelConfig {
     /// Send a message to a Slack channel via an incoming webhook.
     Slack {
         /// Slack incoming webhook URL.
-        #[cfg_attr(feature = "utoipa", schema(example = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"))]
+        #[cfg_attr(
+            feature = "utoipa",
+            schema(example = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL")
+        )]
         webhook_url: String,
     },
 }
@@ -130,7 +145,10 @@ pub enum NotificationChannelConfig {
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct NotificationChannel {
     /// Unique identifier.
-    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    #[cfg_attr(
+        feature = "utoipa",
+        schema(example = "550e8400-e29b-41d4-a716-446655440000")
+    )]
     pub id: uuid::Uuid,
     /// Human-readable name.
     #[cfg_attr(feature = "utoipa", schema(example = "Ops Slack"))]
@@ -146,13 +164,22 @@ pub struct NotificationChannel {
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct MonitorNotification {
     /// Unique identifier.
-    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    #[cfg_attr(
+        feature = "utoipa",
+        schema(example = "550e8400-e29b-41d4-a716-446655440000")
+    )]
     pub id: uuid::Uuid,
     /// ID of the monitor.
-    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    #[cfg_attr(
+        feature = "utoipa",
+        schema(example = "550e8400-e29b-41d4-a716-446655440000")
+    )]
     pub monitor_id: uuid::Uuid,
     /// ID of the notification channel.
-    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    #[cfg_attr(
+        feature = "utoipa",
+        schema(example = "550e8400-e29b-41d4-a716-446655440000")
+    )]
     pub channel_id: uuid::Uuid,
     /// Whether to also send a notification when the monitor recovers.
     #[cfg_attr(feature = "utoipa", schema(example = true))]
@@ -165,7 +192,10 @@ pub struct MonitorNotification {
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct Monitor {
     /// Unique identifier.
-    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    #[cfg_attr(
+        feature = "utoipa",
+        schema(example = "550e8400-e29b-41d4-a716-446655440000")
+    )]
     pub id: uuid::Uuid,
     /// Human-readable name.
     #[cfg_attr(feature = "utoipa", schema(example = "Production API"))]
@@ -194,6 +224,7 @@ pub struct Monitor {
 pub struct LatencyPercentiles {
     pub p50_ms: u64,
     pub p95_ms: u64,
+    pub p99_ms: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -217,10 +248,13 @@ pub struct MonitorStats {
     // latency percentiles in ms
     pub p50_7d: u64,
     pub p95_7d: u64,
+    pub p99_7d: u64,
     pub p50_30d: u64,
     pub p95_30d: u64,
+    pub p99_30d: u64,
     pub p50_90d: u64,
     pub p95_90d: u64,
+    pub p99_90d: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

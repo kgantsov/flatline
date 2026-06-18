@@ -180,7 +180,8 @@ impl IncidentRepository for SqliteIncidentRepository {
              )
              SELECT
                MAX(CASE WHEN rn * 100 <= total * 50 THEN response_time_ms END) AS p50,
-               MAX(CASE WHEN rn * 100 <= total * 95 THEN response_time_ms END) AS p95
+               MAX(CASE WHEN rn * 100 <= total * 95 THEN response_time_ms END) AS p95,
+               MAX(CASE WHEN rn * 100 <= total * 99 THEN response_time_ms END) AS p99
              FROM ordered",
         )
         .bind(&monitor_id_str)
@@ -190,11 +191,13 @@ impl IncidentRepository for SqliteIncidentRepository {
 
         let p50: Option<i64> = row.try_get("p50")?;
         let p95: Option<i64> = row.try_get("p95")?;
+        let p99: Option<i64> = row.try_get("p99")?;
 
-        match (p50, p95) {
-            (Some(p50), Some(p95)) => Ok(Some(LatencyPercentiles {
+        match (p50, p95, p99) {
+            (Some(p50), Some(p95), Some(p99)) => Ok(Some(LatencyPercentiles {
                 p50_ms: p50 as u64,
                 p95_ms: p95 as u64,
+                p99_ms: p99 as u64,
             })),
             _ => Ok(None),
         }

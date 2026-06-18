@@ -1,5 +1,7 @@
 use super::{PageData, Tab, charts};
-use crate::api::{Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig, MonitorStats};
+use crate::api::{
+    Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig, MonitorStats,
+};
 use crate::components::NotifLinker;
 use crate::utils::{fmt_date, fmt_ms, monitor_url};
 use yew::prelude::*;
@@ -21,13 +23,13 @@ fn calc_streak(checks: &[MonitorCheck]) -> usize {
     checks.iter().take_while(|c| &c.status == status).count()
 }
 
-fn calc_p95(checks: &[MonitorCheck]) -> Option<u64> {
+fn calc_p99(checks: &[MonitorCheck]) -> Option<u64> {
     if checks.is_empty() {
         return None;
     }
     let mut times: Vec<u64> = checks.iter().map(|c| c.response_time_ms).collect();
     times.sort_unstable();
-    let idx = ((times.len() as f64 * 0.95) as usize).min(times.len() - 1);
+    let idx = ((times.len() as f64 * 0.99) as usize).min(times.len() - 1);
     Some(times[idx])
 }
 
@@ -49,7 +51,13 @@ fn calc_mttr(incidents: &[Incident]) -> Option<(u64, usize)> {
 }
 
 fn uptime_cls(pct: f64) -> &'static str {
-    if pct >= 99.0 { "stat-value good" } else if pct < 95.0 { "stat-value bad" } else { "stat-value" }
+    if pct >= 99.0 {
+        "stat-value good"
+    } else if pct < 95.0 {
+        "stat-value bad"
+    } else {
+        "stat-value"
+    }
 }
 
 fn fmt_downtime(total_secs: u64) -> String {
@@ -103,7 +111,11 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
 
     let badge_cls = format!(
         "status-badge {}",
-        if !monitor.enabled { "unknown" } else { &effective_str }
+        if !monitor.enabled {
+            "unknown"
+        } else {
+            &effective_str
+        }
     );
     let badge_label = if !monitor.enabled {
         "Paused"
@@ -129,13 +141,11 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
     } else {
         Some(checks.iter().map(|c| c.response_time_ms).sum::<u64>() / checks.len() as u64)
     };
-    let p95 = calc_p95(checks);
+    let p99 = calc_p99(checks);
     let streak = calc_streak(checks);
     let active_incident = incidents.iter().find(|i| i.resolved_at.is_none());
 
-    let uptime_cls_val = uptime_pct
-        .map(uptime_cls)
-        .unwrap_or("stat-value");
+    let uptime_cls_val = uptime_pct.map(uptime_cls).unwrap_or("stat-value");
 
     let streak_cls = if effective_status == Some(&MonitorCheckStatus::Up) {
         "stat-value good"
@@ -205,7 +215,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                         { avg_resp.map(fmt_ms).unwrap_or_else(|| "—".into()) }
                     </div>
                     <div class="stat-sub">
-                        { p95.map(|p| format!("p95 {}", fmt_ms(p))).unwrap_or_else(|| "no data".into()) }
+                        { p99.map(|p| format!("p99 {}", fmt_ms(p))).unwrap_or_else(|| "no data".into()) }
                     </div>
                 </div>
                 <div class="stat-card">
@@ -234,7 +244,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                                 { format!("{:.2}%", ls.uptime_7d * 100.0) }
                             </div>
                             <div class="stat-sub">
-                                { format!("{} downtime · p95 {}", fmt_downtime(ls.downtime_seconds_7d), fmt_ms(ls.p95_7d)) }
+                                { format!("{} downtime · p99 {}", fmt_downtime(ls.downtime_seconds_7d), fmt_ms(ls.p99_7d)) }
                             </div>
                         </div>
                         <div class="stat-card">
@@ -243,7 +253,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                                 { format!("{:.2}%", ls.uptime_30d * 100.0) }
                             </div>
                             <div class="stat-sub">
-                                { format!("{} downtime · p95 {}", fmt_downtime(ls.downtime_seconds_30d), fmt_ms(ls.p95_30d)) }
+                                { format!("{} downtime · p99 {}", fmt_downtime(ls.downtime_seconds_30d), fmt_ms(ls.p99_30d)) }
                             </div>
                         </div>
                         <div class="stat-card">
@@ -252,7 +262,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                                 { format!("{:.2}%", ls.uptime_90d * 100.0) }
                             </div>
                             <div class="stat-sub">
-                                { format!("{} downtime · p95 {}", fmt_downtime(ls.downtime_seconds_90d), fmt_ms(ls.p95_90d)) }
+                                { format!("{} downtime · p99 {}", fmt_downtime(ls.downtime_seconds_90d), fmt_ms(ls.p99_90d)) }
                             </div>
                         </div>
                         <div class="stat-card">
