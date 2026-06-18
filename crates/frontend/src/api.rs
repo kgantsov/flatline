@@ -1,6 +1,6 @@
 pub use shared::models::{
     Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig, MonitorNotification,
-    NotificationChannel, NotificationChannelConfig, User,
+    MonitorStats, NotificationChannel, NotificationChannelConfig, SseEvent, User,
 };
 
 use serde::Serialize;

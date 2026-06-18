@@ -138,7 +138,7 @@ impl IncidentRepository for SqliteIncidentRepository {
                ), 0) AS downtime_seconds
              FROM incidents
              WHERE monitor_id = ?
-               AND started_at < datetime('now')
+               AND unixepoch(started_at) < unixepoch('now')
                AND (resolved_at IS NULL OR resolved_at > ?)",
         )
         .bind(&effective_start_str)
@@ -155,8 +155,8 @@ impl IncidentRepository for SqliteIncidentRepository {
 
         let downtime_seconds: i64 = row.try_get("downtime_seconds")?;
         let uptime =
-            (monitored_seconds - downtime_seconds) as f64 / monitored_seconds as f64 * 100.0;
-        Ok(Some(uptime.clamp(0.0, 100.0)))
+            (monitored_seconds - downtime_seconds) as f64 / monitored_seconds as f64;
+        Ok(Some(uptime.clamp(0.0, 1.0)))
     }
 
     async fn latency_percentiles(

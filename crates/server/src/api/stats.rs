@@ -7,14 +7,10 @@ use crate::AppState;
 use shared::models::SseEvent;
 
 fn sse_event_from(ev: &SseEvent) -> Option<Event> {
-    let event_type = match ev {
-        SseEvent::CheckResult { .. } => "check_result",
-        SseEvent::StatsUpdate { .. } => "stats_update",
-        SseEvent::IncidentOpened { .. } => "incident_opened",
-        SseEvent::IncidentResolved { .. } => "incident_resolved",
-    };
     let data = serde_json::to_string(ev).ok()?;
-    Some(Event::default().event(event_type).data(data))
+    // All events are sent as plain "message" events; the JSON "type" field
+    // discriminates the variant so the client doesn't need named SSE events.
+    Some(Event::default().data(data))
 }
 
 /// Stream real-time monitor events via Server-Sent Events.

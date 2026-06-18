@@ -2,6 +2,7 @@ mod dashboard;
 
 use crate::api::{self, Incident, Monitor, MonitorCheck};
 use crate::components::StatsBar;
+use crate::hooks::use_sse_stats;
 use crate::layout::{Layout, NavActive};
 use dashboard::Dashboard;
 use wasm_bindgen_futures::spawn_local;
@@ -29,6 +30,7 @@ pub(super) enum LoadState {
 pub fn monitors_page() -> Html {
     let state = use_state(|| LoadState::Loading);
     let last_updated = use_state(|| String::from("Loading…"));
+    let sse = use_sse_stats();
 
     let load = {
         let state = state.clone();
@@ -75,7 +77,7 @@ pub fn monitors_page() -> Html {
                     incidents: incidents_all,
                 }));
                 last_updated.set(format!(
-                    "Last updated just now · {} monitor{}",
+                    "Live · {} monitor{}",
                     count,
                     if count != 1 { "s" } else { "" }
                 ));
@@ -87,16 +89,6 @@ pub fn monitors_page() -> Html {
         let load = load.clone();
         use_effect_with((), move |_| {
             load();
-        });
-    }
-
-    {
-        let load = load.clone();
-        use_effect_with((), move |_| {
-            let interval = gloo_timers::callback::Interval::new(30_000, move || {
-                load();
-            });
-            move || drop(interval)
         });
     }
 
@@ -148,7 +140,7 @@ pub fn monitors_page() -> Html {
                     LoadState::Error(msg) => html! {
                         <div class="error-msg">{ msg }</div>
                     },
-                    LoadState::Loaded(data) => html! { <Dashboard data={data} /> },
+                    LoadState::Loaded(data) => html! { <Dashboard data={data} sse={(*sse).clone()} /> },
                 }}
             </main>
         </Layout>

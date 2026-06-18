@@ -1,5 +1,5 @@
 use super::{PageData, Tab, charts};
-use crate::api::{Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig};
+use crate::api::{Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig, MonitorStats};
 use crate::components::NotifLinker;
 use crate::utils::{fmt_date, fmt_ms, monitor_url};
 use yew::prelude::*;
@@ -31,6 +31,27 @@ fn calc_p95(checks: &[MonitorCheck]) -> Option<u64> {
     Some(times[idx])
 }
 
+fn uptime_cls(pct: f64) -> &'static str {
+    if pct >= 99.0 { "stat-value good" } else if pct < 95.0 { "stat-value bad" } else { "stat-value" }
+}
+
+fn fmt_downtime(uptime_fraction: f64, days: f64) -> String {
+    let total_secs = ((1.0 - uptime_fraction) * days * 24.0 * 3600.0) as u64;
+    if total_secs == 0 {
+        return "0s".into();
+    }
+    let h = total_secs / 3600;
+    let m = (total_secs % 3600) / 60;
+    let s = total_secs % 60;
+    if h > 0 {
+        format!("{}h {}m", h, m)
+    } else if m > 0 {
+        format!("{}m {}s", m, s)
+    } else {
+        format!("{}s", s)
+    }
+}
+
 // ── MonitorDetail ─────────────────────────────────────────────────────────────
 
 #[derive(Properties, PartialEq)]
@@ -41,6 +62,10 @@ pub(super) struct MonitorDetailProps {
     pub on_tab_incidents: Callback<MouseEvent>,
     pub on_tab_notifications: Callback<MouseEvent>,
     pub on_reload: Callback<()>,
+    /// Live status from SSE (overrides loaded check for the badge).
+    pub live_status: Option<MonitorCheckStatus>,
+    /// Live computed stats from SSE (7d/30d/90d uptime + latency percentiles).
+    pub live_stats: Option<MonitorStats>,
 }
 
 #[function_component(MonitorDetail)]
@@ -54,22 +79,21 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
     } = &props.data;
 
     let latest = checks.first().map(|c| &c.status);
-    let latest_str = latest
+    // Prefer SSE live status for the badge; fall back to last loaded check.
+    let effective_status = props.live_status.as_ref().or(latest);
+    let effective_str = effective_status
         .map(|s| s.to_string())
         .unwrap_or_else(|| "unknown".into());
+
     let badge_cls = format!(
         "status-badge {}",
-        if !monitor.enabled {
-            "unknown"
-        } else {
-            &latest_str
-        }
+        if !monitor.enabled { "unknown" } else { &effective_str }
     );
     let badge_label = if !monitor.enabled {
         "Paused"
-    } else if latest == Some(&MonitorCheckStatus::Up) {
+    } else if effective_status == Some(&MonitorCheckStatus::Up) {
         "Operational"
-    } else if latest == Some(&MonitorCheckStatus::Down) {
+    } else if effective_status == Some(&MonitorCheckStatus::Down) {
         "Down"
     } else {
         "Unknown"
@@ -93,19 +117,11 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
     let streak = calc_streak(checks);
     let active_incident = incidents.iter().find(|i| i.resolved_at.is_none());
 
-    let uptime_cls = uptime_pct
-        .map(|p| {
-            if p >= 99.0 {
-                "stat-value good"
-            } else if p < 95.0 {
-                "stat-value bad"
-            } else {
-                "stat-value"
-            }
-        })
+    let uptime_cls_val = uptime_pct
+        .map(uptime_cls)
         .unwrap_or("stat-value");
 
-    let streak_cls = if latest == Some(&MonitorCheckStatus::Up) {
+    let streak_cls = if effective_status == Some(&MonitorCheckStatus::Up) {
         "stat-value good"
     } else {
         "stat-value bad"
@@ -145,7 +161,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                 </div>
                 <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
                     <span class={badge_cls}>
-                        <span class={format!("status-dot-sm {}", latest_str)}></span>
+                        <span class={format!("status-dot-sm {}", effective_str)}></span>
                         { badge_label }
                     </span>
                     { if let Some(inc) = active_incident {
@@ -158,13 +174,14 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                 </div>
             </div>
 
+            // ── Recent checks stats (from HTTP load) ──────────────────────────
             <div class="stats-row">
                 <div class="stat-card">
-                    <div class="stat-label">{ "Uptime" }</div>
-                    <div class={uptime_cls}>
+                    <div class="stat-label">{ format!("Uptime (last {})", checks.len()) }</div>
+                    <div class={uptime_cls_val}>
                         { uptime_pct.map(|p| format!("{:.2}%", p)).unwrap_or_else(|| "—".into()) }
                     </div>
-                    <div class="stat-sub">{ format!("last {} checks", checks.len()) }</div>
+                    <div class="stat-sub">{ "recent checks" }</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">{ "Avg response" }</div>
@@ -179,7 +196,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                     <div class="stat-label">{ "Current streak" }</div>
                     <div class={streak_cls}>{ streak.to_string() }</div>
                     <div class="stat-sub">
-                        { if latest == Some(&MonitorCheckStatus::Up) { "checks up" } else { "checks down" } }
+                        { if effective_status == Some(&MonitorCheckStatus::Up) { "checks up" } else { "checks down" } }
                     </div>
                 </div>
                 <div class="stat-card">
@@ -190,6 +207,54 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                     </div>
                 </div>
             </div>
+
+            // ── Live rolling-window stats from SSE ────────────────────────────
+            { if let Some(ls) = &props.live_stats {
+                html! {
+                    <div class="stats-row">
+                        <div class="stat-card">
+                            <div class="stat-label">{ "7d uptime" }</div>
+                            <div class={uptime_cls(ls.uptime_7d * 100.0)}>
+                                { format!("{:.2}%", ls.uptime_7d * 100.0) }
+                            </div>
+                            <div class="stat-sub">
+                                { format!("{} downtime · p95 {}", fmt_downtime(ls.uptime_7d, 7.0), fmt_ms(ls.p95_7d)) }
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">{ "30d uptime" }</div>
+                            <div class={uptime_cls(ls.uptime_30d * 100.0)}>
+                                { format!("{:.2}%", ls.uptime_30d * 100.0) }
+                            </div>
+                            <div class="stat-sub">
+                                { format!("{} downtime · p95 {}", fmt_downtime(ls.uptime_30d, 30.0), fmt_ms(ls.p95_30d)) }
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">{ "90d uptime" }</div>
+                            <div class={uptime_cls(ls.uptime_90d * 100.0)}>
+                                { format!("{:.2}%", ls.uptime_90d * 100.0) }
+                            </div>
+                            <div class="stat-sub">
+                                { format!("{} downtime · p95 {}", fmt_downtime(ls.uptime_90d, 90.0), fmt_ms(ls.p95_90d)) }
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">{ "Last checked" }</div>
+                            <div class="stat-value">
+                                { checks.first().map(|c| {
+                                    let js_date = js_sys::Date::new(&wasm_bindgen::JsValue::from_str(&c.checked_at.to_rfc3339()));
+                                    let diff = ((js_sys::Date::now() - js_date.get_time()) / 1000.0) as i64;
+                                    if diff < 60 { format!("{}s ago", diff) }
+                                    else if diff < 3600 { format!("{}m ago", diff / 60) }
+                                    else { format!("{}h ago", diff / 3600) }
+                                }).unwrap_or_else(|| "—".into()) }
+                            </div>
+                            <div class="stat-sub">{ format!("every {}s", monitor.interval) }</div>
+                        </div>
+                    </div>
+                }
+            } else { html! {} }}
 
             <div class="card">
                 <div class="card-header">

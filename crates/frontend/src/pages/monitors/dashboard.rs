@@ -1,5 +1,6 @@
 use crate::api::{Incident, MonitorCheckStatus};
 use crate::components::{MonitorCard, StatsBar};
+use crate::hooks::SseStats;
 use super::DashboardData;
 use yew::prelude::*;
 
@@ -23,24 +24,34 @@ fn fmt_relative(iso: &str) -> String {
 #[derive(Properties, PartialEq)]
 pub(super) struct DashboardProps {
     pub data: DashboardData,
+    pub sse: SseStats,
 }
 
 #[function_component(Dashboard)]
 pub(super) fn dashboard(props: &DashboardProps) -> Html {
     let DashboardData { monitors, checks, incidents } = &props.data;
+    let sse = &props.sse;
 
     let mut up_count = 0usize;
     let mut down_count = 0usize;
     let mut active_incidents: Vec<(usize, &Incident)> = vec![];
 
     for (i, (m_checks, m_incidents)) in checks.iter().zip(incidents.iter()).enumerate() {
-        if let Some(latest) = m_checks.first() {
-            if latest.status == MonitorCheckStatus::Up {
-                up_count += 1;
-            } else {
-                down_count += 1;
-            }
+        let monitor = &monitors[i];
+        let mid = monitor.id.to_string();
+
+        // Prefer live SSE status; fall back to most recent loaded check.
+        let status = sse
+            .latest_status
+            .get(&mid)
+            .or_else(|| m_checks.first().map(|c| &c.status));
+
+        if status == Some(&MonitorCheckStatus::Up) {
+            up_count += 1;
+        } else if status == Some(&MonitorCheckStatus::Down) {
+            down_count += 1;
         }
+
         if let Some(inc) = m_incidents.iter().find(|i| i.resolved_at.is_none()) {
             active_incidents.push((i, inc));
         }
@@ -108,12 +119,29 @@ pub(super) fn dashboard(props: &DashboardProps) -> Html {
             } else {
                 html! {
                     <div class="monitors-grid">
-                        { for monitors.iter().enumerate().map(|(i, m)| html! {
-                            <MonitorCard
-                                monitor={m.clone()}
-                                checks={checks[i].clone()}
-                                incidents={incidents[i].clone()}
-                            />
+                        { for monitors.iter().enumerate().map(|(i, m)| {
+                            let mid = m.id.to_string();
+
+                            // Prepend SSE-received checks so the sparkline stays live.
+                            let card_checks = match sse.recent_checks.get(&mid) {
+                                Some(recent) if !recent.is_empty() => {
+                                    let mut merged = recent.clone();
+                                    merged.extend_from_slice(&checks[i]);
+                                    merged.truncate(30);
+                                    merged
+                                }
+                                _ => checks[i].clone(),
+                            };
+
+                            html! {
+                                <MonitorCard
+                                    monitor={m.clone()}
+                                    checks={card_checks}
+                                    incidents={incidents[i].clone()}
+                                    live_status={sse.latest_status.get(&mid).cloned()}
+                                    live_stats={sse.stats.get(&mid).cloned()}
+                                />
+                            }
                         })}
                     </div>
                 }

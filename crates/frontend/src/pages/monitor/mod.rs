@@ -2,6 +2,7 @@ mod charts;
 mod detail;
 
 use crate::api::{self, Incident, Monitor, MonitorCheck, MonitorNotification, NotificationChannel};
+use crate::hooks::use_sse_stats;
 use crate::layout::Layout;
 use crate::routes::Route;
 use detail::MonitorDetail;
@@ -47,6 +48,7 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
     let active_tab = use_state(|| Tab::Checks);
     let delete_modal = use_state(|| false);
     let navigator = use_navigator().unwrap();
+    let sse = use_sse_stats();
 
     let load = {
         let page_state = page_state.clone();
@@ -74,14 +76,6 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
         let load = load.clone();
         let id = props.id.clone();
         use_effect_with(id, move |_| { load(); });
-    }
-
-    {
-        let load = load.clone();
-        use_effect_with((), move |_| {
-            let interval = gloo_timers::callback::Interval::new(30_000, load);
-            move || drop(interval)
-        });
     }
 
     let on_reload = {
@@ -216,15 +210,48 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
                             <div class="error-msg">{ format!("Failed to load monitor: {msg}") }</div>
                         </>
                     },
-                    PageState::Loaded(data) => html! {
-                        <MonitorDetail
-                            data={(*data).clone()}
-                            active_tab={(*active_tab).clone()}
-                            on_tab_checks={on_tab_checks.clone()}
-                            on_tab_incidents={on_tab_incidents.clone()}
-                            on_tab_notifications={on_tab_notifications.clone()}
-                            on_reload={on_reload.clone()}
-                        />
+                    PageState::Loaded(data) => {
+                        let mid = data.monitor.id.to_string();
+                        let live_status = (*sse).latest_status.get(&mid).cloned();
+                        let live_stats = (*sse).stats.get(&mid).cloned();
+
+                        // Prepend any SSE-received checks to the loaded history
+                        // so the response-time chart and checks table stay current.
+                        let mut page_data = match (*sse).recent_checks.get(&mid) {
+                            Some(recent) if !recent.is_empty() => {
+                                let mut merged = recent.clone();
+                                merged.extend_from_slice(&data.checks);
+                                merged.truncate(100);
+                                let mut d = (*data).clone();
+                                d.checks = merged;
+                                d
+                            }
+                            _ => (*data).clone(),
+                        };
+
+                        // Apply live incident mutations (open/resolve) from SSE.
+                        if let Some(live) = (*sse).live_incidents.get(&mid) {
+                            for live_inc in live {
+                                if let Some(existing) = page_data.incidents.iter_mut().find(|i| i.id == live_inc.id) {
+                                    existing.resolved_at = live_inc.resolved_at;
+                                } else {
+                                    page_data.incidents.insert(0, live_inc.clone());
+                                }
+                            }
+                        }
+
+                        html! {
+                            <MonitorDetail
+                                data={page_data}
+                                active_tab={(*active_tab).clone()}
+                                on_tab_checks={on_tab_checks.clone()}
+                                on_tab_incidents={on_tab_incidents.clone()}
+                                on_tab_notifications={on_tab_notifications.clone()}
+                                on_reload={on_reload.clone()}
+                                live_status={live_status}
+                                live_stats={live_stats}
+                            />
+                        }
                     },
                 }}
             </main>

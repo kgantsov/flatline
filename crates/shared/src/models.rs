@@ -205,7 +205,7 @@ pub struct User {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MonitorStats {
     pub uptime_7d: f64, // 0.0–1.0
     pub uptime_30d: f64,
