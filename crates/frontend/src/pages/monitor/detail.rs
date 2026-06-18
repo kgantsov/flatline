@@ -53,10 +53,10 @@ fn calc_mttr(incidents: &[Incident]) -> Option<(u64, usize)> {
 fn uptime_cls(pct: f64) -> &'static str {
     if pct >= 99.0 {
         "stat-value good"
-    } else if pct < 95.0 {
-        "stat-value bad"
+    } else if pct >= 95.0 {
+        "stat-value warn"
     } else {
-        "stat-value"
+        "stat-value bad"
     }
 }
 

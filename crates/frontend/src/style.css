@@ -687,6 +687,7 @@ footer {
 }
 
 .stat-value.good { color: var(--up); }
+.stat-value.warn { color: #f59e0b; }
 .stat-value.bad  { color: var(--down); }
 
 /* ── Card ────────────────────────────────────── */
