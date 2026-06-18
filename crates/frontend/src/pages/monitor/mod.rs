@@ -59,14 +59,21 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
             spawn_local(async move {
                 let monitor = match api::fetch_monitor(&id).await {
                     Ok(m) => m,
-                    Err(e) => { page_state.set(PageState::Error(e)); return; }
+                    Err(e) => {
+                        page_state.set(PageState::Error(e));
+                        return;
+                    }
                 };
                 let checks = api::fetch_checks(&id, 100).await;
                 let incidents = api::fetch_incidents(&id).await;
                 let notifications = api::fetch_monitor_notifications(&id).await;
                 let channels = api::fetch_all_channels().await;
                 page_state.set(PageState::Loaded(Box::new(PageData {
-                    monitor, checks, incidents, notifications, channels,
+                    monitor,
+                    checks,
+                    incidents,
+                    notifications,
+                    channels,
                 })));
             });
         }
@@ -75,7 +82,9 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
     {
         let load = load.clone();
         let id = props.id.clone();
-        use_effect_with(id, move |_| { load(); });
+        use_effect_with(id, move |_| {
+            load();
+        });
     }
 
     let on_reload = {
@@ -148,7 +157,11 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
 
     let (toggle_label, toggle_hidden, edit_href, monitor_name) = match (*page_state).clone() {
         PageState::Loaded(ref data) => (
-            if data.monitor.enabled { "Pause" } else { "Resume" },
+            if data.monitor.enabled {
+                "Pause"
+            } else {
+                "Resume"
+            },
             false,
             format!("/create?id={}", data.monitor.id),
             data.monitor.name.clone(),
@@ -212,12 +225,12 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
                     },
                     PageState::Loaded(data) => {
                         let mid = data.monitor.id.to_string();
-                        let live_status = (*sse).latest_status.get(&mid).cloned();
-                        let live_stats = (*sse).stats.get(&mid).cloned();
+                        let live_status = (sse).latest_status.get(&mid).cloned();
+                        let live_stats = (sse).stats.get(&mid).cloned();
 
                         // Prepend any SSE-received checks to the loaded history
                         // so the response-time chart and checks table stay current.
-                        let mut page_data = match (*sse).recent_checks.get(&mid) {
+                        let mut page_data = match (sse).recent_checks.get(&mid) {
                             Some(recent) if !recent.is_empty() => {
                                 let mut merged = recent.clone();
                                 merged.extend_from_slice(&data.checks);
@@ -230,7 +243,7 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
                         };
 
                         // Apply live incident mutations (open/resolve) from SSE.
-                        if let Some(live) = (*sse).live_incidents.get(&mid) {
+                        if let Some(live) = (sse).live_incidents.get(&mid) {
                             for live_inc in live {
                                 if let Some(existing) = page_data.incidents.iter_mut().find(|i| i.id == live_inc.id) {
                                     existing.resolved_at = live_inc.resolved_at;
