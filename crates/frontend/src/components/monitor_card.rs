@@ -39,13 +39,16 @@ pub fn monitor_card(props: &MonitorCardProps) -> Html {
     } else if checks.is_empty() {
         (None, "uptime")
     } else {
-        let up = checks.iter().filter(|c| c.status == MonitorCheckStatus::Up).count();
+        let up = checks
+            .iter()
+            .filter(|c| c.status == MonitorCheckStatus::Up)
+            .count();
         (Some(up as f64 / checks.len() as f64 * 100.0), "uptime")
     };
 
     // Use SSE p50 latency when available; otherwise compute avg from loaded checks.
     let (avg_response, response_label) = if let Some(s) = &props.live_stats {
-        (Some(s.p50_30d), "p50 30d")
+        (Some(s.p99_30d), "p99 30d")
     } else if checks.is_empty() {
         (None, "avg resp.")
     } else {
@@ -53,7 +56,11 @@ pub fn monitor_card(props: &MonitorCardProps) -> Html {
         (Some(total / checks.len() as u64), "avg resp.")
     };
 
-    let card_class = if m.enabled { "monitor-card" } else { "monitor-card disabled" };
+    let card_class = if m.enabled {
+        "monitor-card"
+    } else {
+        "monitor-card disabled"
+    };
     let href = format!("/monitors/{}", m.id);
 
     html! {
