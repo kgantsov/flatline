@@ -8,7 +8,7 @@ Flatline monitors your HTTP endpoints, tracks incidents, sends notifications whe
 
 - **HTTP monitoring** — configurable intervals, timeouts, retries, expected status codes, and HTTP methods
 - **Incident tracking** — automatically opens an incident when a monitor goes down, resolves it on recovery
-- **Uptime and latency stats** — uptime percentage and P50/P95 latency over 7, 30, and 90-day windows
+- **Uptime and latency stats** — uptime percentage and P99 latency over 7, 30, and 90-day windows
 - **Notifications** — Slack webhooks and arbitrary HTTP webhooks, configurable per monitor
 - **OIDC authentication** — works with Google, Keycloak, Authentik, Dex, or any OIDC provider
 - **Embedded web UI** — Yew/WASM frontend compiled into the binary, no separate asset server needed

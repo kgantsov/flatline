@@ -3,6 +3,10 @@ name = "server"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "flatline"
+path = "src/main.rs"
+
 [dependencies]
 rust-embed = "8"
 mime_guess = "2"
