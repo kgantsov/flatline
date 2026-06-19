@@ -8,34 +8,43 @@ pub(super) fn response_chart(checks: &[MonitorCheck]) -> Html {
     }
 
     let data: Vec<_> = checks.iter().rev().collect();
-    let max_ms = data.iter().map(|c| c.response_time_ms).max().unwrap_or(1).max(1);
+    let max_ms = data
+        .iter()
+        .map(|c| c.response_time_ms)
+        .max()
+        .unwrap_or(1)
+        .max(1);
     let n = data.len();
     let vw = 600.0f64;
     let vh = 160.0f64;
     let slot = vw / n as f64;
     let bar_w = (slot - 1.5).max(2.0);
 
-    let bars: Vec<Html> = data.iter().enumerate().map(|(i, c)| {
-        let x = i as f64 * slot;
-        let bar_h = (c.response_time_ms as f64 / max_ms as f64 * vh).max(2.0);
-        let y = vh - bar_h;
-        let fill = if c.status == MonitorCheckStatus::Up {
-            "rgba(99,102,241,.75)"
-        } else {
-            "rgba(239,68,68,.8)"
-        };
-        let checked_at_str = c.checked_at.to_rfc3339();
-        let d = js_sys::Date::new(&wasm_bindgen::JsValue::from_str(&checked_at_str));
-        let label = format!("{:02}:{:02}", d.get_hours(), d.get_minutes());
-        html! {
-            <rect
-                x={format!("{:.1}", x)} y={format!("{:.1}", y)}
-                width={format!("{:.1}", bar_w)} height={format!("{:.1}", bar_h)}
-                fill={fill} rx="1">
-                <title>{ format!("{} – {}ms", label, c.response_time_ms) }</title>
-            </rect>
-        }
-    }).collect();
+    let bars: Vec<Html> = data
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            let x = i as f64 * slot;
+            let bar_h = (c.response_time_ms as f64 / max_ms as f64 * vh).max(2.0);
+            let y = vh - bar_h;
+            let fill = if c.status == MonitorCheckStatus::Up {
+                "rgba(99,102,241,.75)"
+            } else {
+                "rgba(239,68,68,.8)"
+            };
+            let checked_at_str = c.checked_at.to_rfc3339();
+            let d = js_sys::Date::new(&wasm_bindgen::JsValue::from_str(&checked_at_str));
+            let label = format!("{:02}:{:02}", d.get_hours(), d.get_minutes());
+            html! {
+                <rect
+                    x={format!("{:.1}", x)} y={format!("{:.1}", y)}
+                    width={format!("{:.1}", bar_w)} height={format!("{:.1}", bar_h)}
+                    fill={fill} rx="1">
+                    <title>{ format!("{} – {}ms", label, c.response_time_ms) }</title>
+                </rect>
+            }
+        })
+        .collect();
 
     html! {
         <div class="chart-wrap">
@@ -48,43 +57,35 @@ pub(super) fn response_chart(checks: &[MonitorCheck]) -> Html {
     }
 }
 
-pub(super) fn checks_table(checks: &[MonitorCheck]) -> Html {
+pub(super) fn checks_table(checks: &[MonitorCheck], timeout_secs: u64) -> Html {
     if checks.is_empty() {
         return html! { <div class="empty-table">{ "No checks recorded yet." }</div> };
     }
 
-    let max_resp = checks.iter().map(|c| c.response_time_ms).max().unwrap_or(1).max(1);
+    let timeout_ms = (timeout_secs * 1000).max(1);
 
     let rows: Vec<Html> = checks.iter().take(50).map(|c| {
-        let bar_w = ((c.response_time_ms as f64 / max_resp as f64) * 120.0).round() as u64;
+        let bar_w = ((c.response_time_ms as f64 / timeout_ms as f64) * 120.0).min(120.0).round() as u64;
         let status_str = c.status.to_string();
         let bar_color = if c.status == MonitorCheckStatus::Down { "var(--down)" } else { "var(--accent)" };
         let pill_cls = format!("status-pill {}", status_str);
         html! {
             <tr>
-                <td><span class={pill_cls}>{ &status_str }</span></td>
-                <td class="code-cell">
+                <td style="width:70px"><span class={pill_cls}>{ &status_str }</span></td>
+                <td class="code-cell" style="width:52px">
                     { c.status_code.map(|s| s.to_string()).unwrap_or_else(|| "—".into()) }
                 </td>
                 <td>
                     <div class="resp-bar-wrap">
-                        <span class="code-cell">{ fmt_ms(c.response_time_ms) }</span>
                         <div class="resp-bar"
                              style={format!("width:{}px;background:{}", bar_w, bar_color)}>
                         </div>
+                        <span class="code-cell" style="margin-left:auto">{ fmt_ms(c.response_time_ms) }</span>
                     </div>
                 </td>
-                <td class="text-muted" style="font-size:12.5px">{ fmt_date(&c.checked_at.to_rfc3339()) }</td>
-                <td style="width:32px;text-align:center">
-                    { if let Some(err) = &c.error_message {
-                        html! {
-                            <span title={err.clone()} style="cursor:pointer;color:var(--down);font-size:12px">
-                                { "!" }
-                            </span>
-                        }
-                    } else {
-                        html! {}
-                    }}
+                <td class="text-muted" style="font-size:12.5px;width:140px;white-space:nowrap">{ fmt_date(&c.checked_at.to_rfc3339()) }</td>
+                <td style="font-size:12px;color:var(--down);max-width:220px">
+                    { c.error_message.clone().unwrap_or_default() }
                 </td>
             </tr>
         }
@@ -94,11 +95,11 @@ pub(super) fn checks_table(checks: &[MonitorCheck]) -> Html {
         <table class="checks-table">
             <thead>
                 <tr>
-                    <th>{ "Status" }</th>
-                    <th>{ "Code" }</th>
+                    <th style="width:70px">{ "Status" }</th>
+                    <th style="width:52px">{ "Code" }</th>
                     <th>{ "Response time" }</th>
-                    <th>{ "Time" }</th>
-                    <th></th>
+                    <th style="width:140px">{ "Time" }</th>
+                    <th>{ "Error" }</th>
                 </tr>
             </thead>
             <tbody>{ for rows }</tbody>

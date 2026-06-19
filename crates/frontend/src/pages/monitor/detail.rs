@@ -309,7 +309,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
 
                 { match props.active_tab {
                     Tab::Checks => html! {
-                        <div>{ charts::checks_table(checks) }</div>
+                        <div>{ charts::checks_table(checks, monitor.timeout as u64) }</div>
                     },
                     Tab::Incidents => html! {
                         <div>{ charts::incidents_list(incidents) }</div>
