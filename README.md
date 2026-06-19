@@ -4,9 +4,6 @@ A self-hosted uptime monitor. Single binary, no external dependencies.
 
 Flatline monitors your HTTP endpoints, tracks incidents, sends notifications when things go down, and serves a web UI — all from one Rust binary with an embedded SQLite database.
 
-![Dashboard](/.github/screenshots/dashboard.png)
-![Monitor Details](/.github/screenshots/monitor-detail.png)
-
 ## Features
 
 - **HTTP monitoring** — configurable intervals, timeouts, retries, expected status codes, and HTTP methods
@@ -16,6 +13,11 @@ Flatline monitors your HTTP endpoints, tracks incidents, sends notifications whe
 - **OIDC authentication** — works with Google, Keycloak, Authentik, Dex, or any OIDC provider
 - **Embedded web UI** — Yew/WASM frontend compiled into the binary, no separate asset server needed
 - **OpenAPI docs** — Swagger UI at `/docs`
+
+
+![Dashboard](/.github/screenshots/dashboard.png)
+![Monitor Details](/.github/screenshots/monitor-detail.png)
+
 
 ## Quick Start
 
