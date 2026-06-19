@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name, config, interval, timeout, retries, enabled, created_at, updated_at\n             FROM monitors LIMIT 100",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "config",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "interval",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "timeout",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "retries",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "enabled",
+        "ordinal": 6,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 8,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5948702f62762477f2f511228adbe2e7f024d40171eed7228dc9977f269ff739"
+}

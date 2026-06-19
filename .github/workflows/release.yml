@@ -11,6 +11,7 @@ permissions:
 env:
   BIN_NAME: flatline
   CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: true
 
 jobs:
   # --------------------------------------------------
