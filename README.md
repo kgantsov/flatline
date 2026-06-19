@@ -5,7 +5,7 @@ A self-hosted uptime monitor. Single binary, no external dependencies.
 Flatline monitors your HTTP endpoints, tracks incidents, sends notifications when things go down, and serves a web UI — all from one Rust binary with an embedded SQLite database.
 
 ![Dashboard](/.github/screenshots/dashboard.png)
-![Monitor Details](/.github/screenshots/monitor-details.png)
+![Monitor Details](/.github/screenshots/monitor-detail.png)
 
 ## Features
 
