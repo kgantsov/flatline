@@ -275,6 +275,7 @@ impl MonitorWorker {
             status: check_status,
             status_code: res.status_code,
             response_time_ms: res.response_time_ms,
+            error_message: res.error.clone(),
             checked_at,
         });
 

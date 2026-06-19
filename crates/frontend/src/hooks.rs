@@ -63,6 +63,7 @@ pub fn use_sse_stats() -> UseStateHandle<SseStats> {
                                 status,
                                 status_code,
                                 response_time_ms,
+                                error_message,
                                 checked_at,
                             } => {
                                 let mid = monitor_id.to_string();
@@ -75,7 +76,7 @@ pub fn use_sse_stats() -> UseStateHandle<SseStats> {
                                     status,
                                     status_code,
                                     response_time_ms,
-                                    error_message: None,
+                                    error_message,
                                     checked_at,
                                 };
                                 let list = s.recent_checks.entry(mid).or_default();

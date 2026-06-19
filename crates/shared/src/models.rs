@@ -265,6 +265,7 @@ pub enum SseEvent {
         status: MonitorCheckStatus,
         status_code: Option<u16>,
         response_time_ms: u64,
+        error_message: Option<String>,
         checked_at: DateTime<Utc>,
     },
     StatsUpdate {
