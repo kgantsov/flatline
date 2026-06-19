@@ -1,3 +1,4 @@
+use clap::Parser;
 use dashmap::DashMap;
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use server::auth::oidc::build_oidc_client;
@@ -11,14 +12,31 @@ use server::db::sqlite_user::SqliteUserRepository;
 use server::monitor::engine::{EngineHandle, MonitorEngine};
 use server::{AppState, build_router};
 use shared::models::MonitorStats;
-use tokio::sync::broadcast;
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 use tracing::{Level, info};
 use uuid::Uuid;
+
+#[derive(Parser, Debug)]
+#[command(
+    author = "Kostiantyn Hantsov",
+    version,
+    about = "Flatline - A simple uptime monitoring service"
+)]
+struct Args {
+    #[arg(
+        short,
+        long,
+        value_name = "ADDRESS",
+        help = "Address to listen on",
+        default_value = "0.0.0.0:3000"
+    )]
+    address: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,6 +45,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_max_level(Level::DEBUG)
         .init();
+
+    let args = Args::parse();
 
     let config = init_config();
 
@@ -79,10 +99,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = build_router(state);
 
-    let addr = "0.0.0.0:3000";
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    info!("Server running on http://{}", addr);
-    info!("Swagger UI available at http://{}/docs", addr);
+    let listener = tokio::net::TcpListener::bind(&args.address).await?;
+    info!("Server running on http://{}", args.address);
+    info!("Swagger UI available at http://{}/docs", args.address);
 
     axum::serve(
         listener,
