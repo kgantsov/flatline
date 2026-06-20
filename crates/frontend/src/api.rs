@@ -240,8 +240,9 @@ pub struct NotificationChannelFormData {
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum NotificationChannelConfigInput {
     Webhook { url: String },
-    Slack { webhook_url: String },
+    Slack { url: String },
     Telegram { url: String, chat_id: String },
+    Discord { url: String },
 }
 
 async fn handle_channel_response(

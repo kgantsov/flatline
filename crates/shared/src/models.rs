@@ -136,7 +136,7 @@ pub enum NotificationChannelConfig {
             feature = "utoipa",
             schema(example = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL")
         )]
-        webhook_url: String,
+        url: String,
     },
 
     /// Send a message to a Telegram chat via a bot API URL.
@@ -151,6 +151,16 @@ pub enum NotificationChannelConfig {
         /// Chat ID to send messages to.
         #[cfg_attr(feature = "utoipa", schema(example = "123456789"))]
         chat_id: String,
+    },
+
+    /// Send a message to a Discord channel via a webhook URL.
+    Discord {
+        /// Discord webhook URL.
+        #[cfg_attr(
+            feature = "utoipa",
+            schema(example = "https://discord.com/api/webhooks/YOUR/WEBHOOK/URL")
+        )]
+        url: String,
     },
 }
 

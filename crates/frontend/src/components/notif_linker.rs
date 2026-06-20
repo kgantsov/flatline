@@ -20,7 +20,11 @@ pub fn notif_linker(props: &NotifLinkerProps) -> Html {
 
     let linked_ids: std::collections::HashSet<_> =
         props.notifications.iter().map(|n| n.channel_id).collect();
-    let available: Vec<_> = props.channels.iter().filter(|c| !linked_ids.contains(&c.id)).collect();
+    let available: Vec<_> = props
+        .channels
+        .iter()
+        .filter(|c| !linked_ids.contains(&c.id))
+        .collect();
 
     let on_unlink = {
         let mid = props.monitor_id.clone();
@@ -42,7 +46,9 @@ pub fn notif_linker(props: &NotifLinkerProps) -> Html {
         let on_recovery = on_recovery.clone();
         Callback::from(move |_: MouseEvent| {
             let cid = (*selected_id).clone();
-            if cid.is_empty() { return; }
+            if cid.is_empty() {
+                return;
+            }
             let mid = mid.clone();
             let on_reload = on_reload.clone();
             let rec = *on_recovery;
@@ -136,6 +142,7 @@ pub fn notif_linker(props: &NotifLinkerProps) -> Html {
                                         NotificationChannelConfig::Slack { .. } => "Slack",
                                         NotificationChannelConfig::Telegram { .. } => "Telegram",
                                         NotificationChannelConfig::Webhook { .. } => "Webhook",
+                                        NotificationChannelConfig::Discord { .. } => "Discord",
                                     };
                                     html! {
                                         <option value={c.id.to_string()}>

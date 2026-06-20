@@ -3,14 +3,14 @@ use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
-pub struct SlackFormProps {
+pub struct DiscordFormProps {
     pub initial_url: String,
     pub show_errors: bool,
     pub on_change: Callback<Option<NotificationChannelConfigInput>>,
 }
 
-#[function_component(SlackForm)]
-pub fn slack_form(props: &SlackFormProps) -> Html {
+#[function_component(DiscordForm)]
+pub fn discord_form(props: &DiscordFormProps) -> Html {
     let url = use_state(|| props.initial_url.clone());
 
     // Emit initial config on mount
@@ -35,24 +35,24 @@ pub fn slack_form(props: &SlackFormProps) -> Html {
 
     html! {
         <div class="field" style="margin-bottom:16px">
-            <label>{ "Slack incoming webhook URL" }</label>
+            <label>{ "Discord incoming webhook URL" }</label>
             <input
                 type="url"
-                placeholder="https://hooks.slack.com/services/\u{2026}"
+                placeholder="https://discord.com/api/webhooks/\u{2026}"
                 value={(*url).clone()}
                 oninput={on_url}
                 class={if url_err { "input-error" } else { "" }}
                 autocomplete="off"
             />
             { if url_err { html! {
-                <span class="field-error">{ "A valid Slack webhook URL is required." }</span>
+                <span class="field-error">{ "A valid Discord webhook URL is required." }</span>
             }} else { html! {} }}
         </div>
     }
 }
 
 fn build_config(url: &str) -> Option<NotificationChannelConfigInput> {
-    super::is_valid_url(url).then(|| NotificationChannelConfigInput::Slack {
+    super::is_valid_url(url).then(|| NotificationChannelConfigInput::Discord {
         url: url.trim().to_string(),
     })
 }

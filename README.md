@@ -9,7 +9,7 @@ Flatline monitors your HTTP endpoints, tracks incidents, sends notifications whe
 - **HTTP monitoring** — configurable intervals, timeouts, retries, expected status codes, and HTTP methods
 - **Incident tracking** — automatically opens an incident when a monitor goes down, resolves it on recovery
 - **Uptime and latency stats** — uptime percentage and P99 latency over 7, 30, and 90-day windows
-- **Notifications** — Slack webhooks and arbitrary HTTP webhooks, configurable per monitor
+- **Notifications** — Slack, Discord, Telegram, and arbitrary HTTP webhooks, configurable per monitor
 - **OIDC authentication** — works with Google, Keycloak, Authentik, Dex, or any OIDC provider
 - **Embedded web UI** — Yew/WASM frontend compiled into the binary, no separate asset server needed
 - **OpenAPI docs** — Swagger UI at `/docs`
@@ -88,16 +88,47 @@ The login flow: `/auth/login` redirects to your OIDC provider, which redirects b
 
 ## Notification Channels
 
+Channels are linked to monitors independently, so you can send different monitors to different channels.
+
 ### Slack
 
 Posts a message to a Slack incoming webhook URL.
 
 ```json
 {
-  "name": "My Slack Channel",
+  "name": "My Slack channel",
   "config": {
     "type": "slack",
-    "webhook_url": "https://hooks.slack.com/services/..."
+    "url": "https://hooks.slack.com/services/..."
+  }
+}
+```
+
+### Discord
+
+Posts a rich embed to a Discord channel via an incoming webhook URL.
+
+```json
+{
+  "name": "My Discord channel",
+  "config": {
+    "type": "discord",
+    "url": "https://discord.com/api/webhooks/..."
+  }
+}
+```
+
+### Telegram
+
+Sends a message to a Telegram chat via a bot. Create a bot with [@BotFather](https://t.me/BotFather) to get the token.
+
+```json
+{
+  "name": "My Telegram chat",
+  "config": {
+    "type": "telegram",
+    "url": "https://api.telegram.org/bot<token>/sendMessage",
+    "chat_id": "123456789"
   }
 }
 ```
@@ -108,15 +139,13 @@ Sends an HTTP POST with a JSON payload to any URL.
 
 ```json
 {
-  "name": "My Webhook",
+  "name": "My webhook",
   "config": {
     "type": "webhook",
     "url": "https://your-service.example.com/hook"
   }
 }
 ```
-
-Channels are linked to monitors independently, so you can send different monitors to different channels.
 
 ## API
 
