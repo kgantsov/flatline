@@ -91,6 +91,7 @@ pub fn notif_linker(props: &NotifLinkerProps) -> Html {
                     let (type_cls, type_label) = match ch.map(|c| &c.config) {
                         Some(NotificationChannelConfig::Slack { .. }) => ("channel-type-badge slack", "Slack"),
                         Some(NotificationChannelConfig::Telegram { .. }) => ("channel-type-badge telegram", "Telegram"),
+                        Some(NotificationChannelConfig::Discord { .. }) => ("channel-type-badge discord", "Discord"),
                         _ => ("channel-type-badge webhook", "Webhook"),
                     };
                     let ch_name = ch.map(|c| c.name.as_str()).unwrap_or("Unknown");
@@ -136,7 +137,7 @@ pub fn notif_linker(props: &NotifLinkerProps) -> Html {
                     html! {
                         <div class="link-form">
                             <select class="select-input" onchange={on_select}>
-                                <option value="">{ "Select a channel…" }</option>
+                                <option value="" selected={(*selected_id).is_empty()}>{ "Select a channel…" }</option>
                                 { for available.iter().map(|c| {
                                     let label = match &c.config {
                                         NotificationChannelConfig::Slack { .. } => "Slack",
@@ -144,8 +145,9 @@ pub fn notif_linker(props: &NotifLinkerProps) -> Html {
                                         NotificationChannelConfig::Webhook { .. } => "Webhook",
                                         NotificationChannelConfig::Discord { .. } => "Discord",
                                     };
+                                    let is_selected = c.id.to_string() == *selected_id;
                                     html! {
-                                        <option value={c.id.to_string()}>
+                                        <option value={c.id.to_string()} selected={is_selected}>
                                             { format!("{} ({})", c.name, label) }
                                         </option>
                                     }
