@@ -84,6 +84,7 @@ pub fn notif_linker(props: &NotifLinkerProps) -> Html {
                     let ch = props.channels.iter().find(|c| c.id == n.channel_id);
                     let (type_cls, type_label) = match ch.map(|c| &c.config) {
                         Some(NotificationChannelConfig::Slack { .. }) => ("channel-type-badge slack", "Slack"),
+                        Some(NotificationChannelConfig::Telegram { .. }) => ("channel-type-badge telegram", "Telegram"),
                         _ => ("channel-type-badge webhook", "Webhook"),
                     };
                     let ch_name = ch.map(|c| c.name.as_str()).unwrap_or("Unknown");
@@ -133,6 +134,7 @@ pub fn notif_linker(props: &NotifLinkerProps) -> Html {
                                 { for available.iter().map(|c| {
                                     let label = match &c.config {
                                         NotificationChannelConfig::Slack { .. } => "Slack",
+                                        NotificationChannelConfig::Telegram { .. } => "Telegram",
                                         NotificationChannelConfig::Webhook { .. } => "Webhook",
                                     };
                                     html! {

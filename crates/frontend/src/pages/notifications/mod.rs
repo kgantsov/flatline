@@ -17,6 +17,7 @@ fn channel_url(config: &NotificationChannelConfig) -> &str {
     match config {
         NotificationChannelConfig::Webhook { url } => url.as_str(),
         NotificationChannelConfig::Slack { webhook_url } => webhook_url.as_str(),
+        NotificationChannelConfig::Telegram { url, .. } => url.as_str(),
     }
 }
 
@@ -24,6 +25,7 @@ fn channel_type_key(config: &NotificationChannelConfig) -> &'static str {
     match config {
         NotificationChannelConfig::Webhook { .. } => "webhook",
         NotificationChannelConfig::Slack { .. } => "slack",
+        NotificationChannelConfig::Telegram { .. } => "telegram",
     }
 }
 
@@ -31,6 +33,7 @@ fn channel_type_label(config: &NotificationChannelConfig) -> &'static str {
     match config {
         NotificationChannelConfig::Webhook { .. } => "Webhook",
         NotificationChannelConfig::Slack { .. } => "Slack",
+        NotificationChannelConfig::Telegram { .. } => "Telegram",
     }
 }
 
@@ -53,8 +56,11 @@ pub fn notifications_page() -> Html {
     let form_type = use_state(|| "webhook".to_string());
     let form_webhook_url = use_state(String::new);
     let form_slack_url = use_state(String::new);
+    let form_telegram_url = use_state(String::new);
+    let form_telegram_chat_id = use_state(String::new);
     let name_err = use_state(|| false);
     let url_err = use_state(|| false);
+    let chat_id_err = use_state(|| false);
     let submitting = use_state(|| false);
     let modal_alert: UseStateHandle<Option<String>> = use_state(|| None);
 
@@ -83,8 +89,11 @@ pub fn notifications_page() -> Html {
         let form_type = form_type.clone();
         let form_webhook_url = form_webhook_url.clone();
         let form_slack_url = form_slack_url.clone();
+        let form_telegram_url = form_telegram_url.clone();
+        let form_telegram_chat_id = form_telegram_chat_id.clone();
         let name_err = name_err.clone();
         let url_err = url_err.clone();
+        let chat_id_err = chat_id_err.clone();
         let submitting = submitting.clone();
         let modal_alert = modal_alert.clone();
         Callback::from(move |_: MouseEvent| {
@@ -92,8 +101,11 @@ pub fn notifications_page() -> Html {
             form_type.set("webhook".to_string());
             form_webhook_url.set(String::new());
             form_slack_url.set(String::new());
+            form_telegram_url.set(String::new());
+            form_telegram_chat_id.set(String::new());
             name_err.set(false);
             url_err.set(false);
+            chat_id_err.set(false);
             submitting.set(false);
             modal_alert.set(None);
             modal.set(ChannelModal::Create);
@@ -108,8 +120,11 @@ pub fn notifications_page() -> Html {
         let form_type = form_type.clone();
         let form_webhook_url = form_webhook_url.clone();
         let form_slack_url = form_slack_url.clone();
+        let form_telegram_url = form_telegram_url.clone();
+        let form_telegram_chat_id = form_telegram_chat_id.clone();
         let name_err = name_err.clone();
         let url_err = url_err.clone();
+        let chat_id_err = chat_id_err.clone();
         let submitting = submitting.clone();
         let modal_alert = modal_alert.clone();
         Callback::from(move |ch: NotificationChannel| {
@@ -119,15 +134,27 @@ pub fn notifications_page() -> Html {
                     form_type.set("webhook".to_string());
                     form_webhook_url.set(url.clone());
                     form_slack_url.set(String::new());
+                    form_telegram_url.set(String::new());
+                    form_telegram_chat_id.set(String::new());
                 }
                 NotificationChannelConfig::Slack { webhook_url } => {
                     form_type.set("slack".to_string());
                     form_webhook_url.set(String::new());
                     form_slack_url.set(webhook_url.clone());
+                    form_telegram_url.set(String::new());
+                    form_telegram_chat_id.set(String::new());
+                }
+                NotificationChannelConfig::Telegram { url, chat_id } => {
+                    form_type.set("telegram".to_string());
+                    form_webhook_url.set(String::new());
+                    form_slack_url.set(String::new());
+                    form_telegram_url.set(url.clone());
+                    form_telegram_chat_id.set(chat_id.clone());
                 }
             }
             name_err.set(false);
             url_err.set(false);
+            chat_id_err.set(false);
             submitting.set(false);
             modal_alert.set(None);
             modal.set(ChannelModal::Edit(ch));
@@ -146,18 +173,33 @@ pub fn notifications_page() -> Html {
     let set_webhook = {
         let form_type = form_type.clone();
         let url_err = url_err.clone();
+        let chat_id_err = chat_id_err.clone();
         Callback::from(move |_: MouseEvent| {
             form_type.set("webhook".to_string());
             url_err.set(false);
+            chat_id_err.set(false);
         })
     };
 
     let set_slack = {
         let form_type = form_type.clone();
         let url_err = url_err.clone();
+        let chat_id_err = chat_id_err.clone();
         Callback::from(move |_: MouseEvent| {
             form_type.set("slack".to_string());
             url_err.set(false);
+            chat_id_err.set(false);
+        })
+    };
+
+    let set_telegram = {
+        let form_type = form_type.clone();
+        let url_err = url_err.clone();
+        let chat_id_err = chat_id_err.clone();
+        Callback::from(move |_: MouseEvent| {
+            form_type.set("telegram".to_string());
+            url_err.set(false);
+            chat_id_err.set(false);
         })
     };
 
@@ -187,6 +229,22 @@ pub fn notifications_page() -> Html {
         })
     };
 
+    let on_telegram_url = {
+        let form_telegram_url = form_telegram_url.clone();
+        Callback::from(move |e: InputEvent| {
+            let el: HtmlInputElement = e.target_unchecked_into();
+            form_telegram_url.set(el.value());
+        })
+    };
+
+    let on_telegram_chat_id = {
+        let form_telegram_chat_id = form_telegram_chat_id.clone();
+        Callback::from(move |e: InputEvent| {
+            let el: HtmlInputElement = e.target_unchecked_into();
+            form_telegram_chat_id.set(el.value());
+        })
+    };
+
     // ── Submit ─────────────────────────────────────────────────────────────────
 
     let on_submit = {
@@ -195,8 +253,11 @@ pub fn notifications_page() -> Html {
         let form_type = form_type.clone();
         let form_webhook_url = form_webhook_url.clone();
         let form_slack_url = form_slack_url.clone();
+        let form_telegram_url = form_telegram_url.clone();
+        let form_telegram_chat_id = form_telegram_chat_id.clone();
         let name_err = name_err.clone();
         let url_err = url_err.clone();
+        let chat_id_err = chat_id_err.clone();
         let submitting = submitting.clone();
         let modal_alert = modal_alert.clone();
         let reload = reload.clone();
@@ -205,28 +266,35 @@ pub fn notifications_page() -> Html {
             e.prevent_default();
 
             let name_ok = !(*form_name).trim().is_empty();
-            let url_ok = if (*form_type).as_str() == "webhook" {
-                is_valid_url(&form_webhook_url)
-            } else {
-                is_valid_url(&form_slack_url)
+            let (url_ok, chat_id_ok) = match (*form_type).as_str() {
+                "webhook" => (is_valid_url(&form_webhook_url), true),
+                "slack" => (is_valid_url(&form_slack_url), true),
+                _ => (
+                    is_valid_url(&form_telegram_url),
+                    !(*form_telegram_chat_id).trim().is_empty(),
+                ),
             };
 
             name_err.set(!name_ok);
             url_err.set(!url_ok);
+            chat_id_err.set(!chat_id_ok);
 
-            if !name_ok || !url_ok {
+            if !name_ok || !url_ok || !chat_id_ok {
                 return;
             }
 
             let name = (*form_name).trim().to_string();
-            let config = if (*form_type).as_str() == "webhook" {
-                NotificationChannelConfigInput::Webhook {
+            let config = match (*form_type).as_str() {
+                "webhook" => NotificationChannelConfigInput::Webhook {
                     url: (*form_webhook_url).trim().to_string(),
-                }
-            } else {
-                NotificationChannelConfigInput::Slack {
+                },
+                "slack" => NotificationChannelConfigInput::Slack {
                     webhook_url: (*form_slack_url).trim().to_string(),
-                }
+                },
+                _ => NotificationChannelConfigInput::Telegram {
+                    url: (*form_telegram_url).trim().to_string(),
+                    chat_id: (*form_telegram_chat_id).trim().to_string(),
+                },
             };
             let data = NotificationChannelFormData { name, config };
 
@@ -424,7 +492,7 @@ pub fn notifications_page() -> Html {
                             { if is_edit {
                                 "Update this notification channel."
                             } else {
-                                "Send alerts to a webhook endpoint or Slack workspace."
+                                "Send alerts to a webhook endpoint, Slack workspace, or Telegram chat."
                             }}
                         </div>
 
@@ -464,42 +532,86 @@ pub fn notifications_page() -> Html {
                                         onclick={set_slack}>
                                         { "Slack" }
                                     </span>
+                                    <span
+                                        class={if (*form_type).as_str() == "telegram" { "type-pill selected" } else { "type-pill" }}
+                                        onclick={set_telegram}>
+                                        { "Telegram" }
+                                    </span>
                                 </div>
                             </div>
 
-                            { if (*form_type).as_str() == "webhook" { html! {
-                                <div class="field" style="margin-bottom:16px">
-                                    <label>{ "Webhook URL" }</label>
-                                    <input
-                                        type="url"
-                                        placeholder="https://example.com/webhook"
-                                        value={(*form_webhook_url).clone()}
-                                        oninput={on_webhook_url}
-                                        class={if *url_err { "input-error" } else { "" }}
-                                        autocomplete="off"
-                                    />
-                                    { if *url_err { html! {
-                                        <span class="field-error">{ "A valid URL is required." }</span>
-                                    }} else { html! {} }}
-                                </div>
-                            }} else { html! {
-                                <div class="field" style="margin-bottom:16px">
-                                    <label>{ "Slack incoming webhook URL" }</label>
-                                    <input
-                                        type="url"
-                                        placeholder="https://hooks.slack.com/services/\u{2026}"
-                                        value={(*form_slack_url).clone()}
-                                        oninput={on_slack_url}
-                                        class={if *url_err { "input-error" } else { "" }}
-                                        autocomplete="off"
-                                    />
-                                    { if *url_err { html! {
-                                        <span class="field-error">
-                                            { "A valid Slack webhook URL is required." }
-                                        </span>
-                                    }} else { html! {} }}
-                                </div>
-                            }}}
+                            { match (*form_type).as_str() {
+                                "webhook" => html! {
+                                    <div class="field" style="margin-bottom:16px">
+                                        <label>{ "Webhook URL" }</label>
+                                        <input
+                                            type="url"
+                                            placeholder="https://example.com/webhook"
+                                            value={(*form_webhook_url).clone()}
+                                            oninput={on_webhook_url}
+                                            class={if *url_err { "input-error" } else { "" }}
+                                            autocomplete="off"
+                                        />
+                                        { if *url_err { html! {
+                                            <span class="field-error">{ "A valid URL is required." }</span>
+                                        }} else { html! {} }}
+                                    </div>
+                                },
+                                "slack" => html! {
+                                    <div class="field" style="margin-bottom:16px">
+                                        <label>{ "Slack incoming webhook URL" }</label>
+                                        <input
+                                            type="url"
+                                            placeholder="https://hooks.slack.com/services/\u{2026}"
+                                            value={(*form_slack_url).clone()}
+                                            oninput={on_slack_url}
+                                            class={if *url_err { "input-error" } else { "" }}
+                                            autocomplete="off"
+                                        />
+                                        { if *url_err { html! {
+                                            <span class="field-error">
+                                                { "A valid Slack webhook URL is required." }
+                                            </span>
+                                        }} else { html! {} }}
+                                    </div>
+                                },
+                                _ => html! {
+                                    <>
+                                        <div class="field" style="margin-bottom:16px">
+                                            <label>{ "Bot API URL" }</label>
+                                            <input
+                                                type="url"
+                                                placeholder="https://api.telegram.org/bot<token>/sendMessage"
+                                                value={(*form_telegram_url).clone()}
+                                                oninput={on_telegram_url}
+                                                class={if *url_err { "input-error" } else { "" }}
+                                                autocomplete="off"
+                                            />
+                                            { if *url_err { html! {
+                                                <span class="field-error">
+                                                    { "A valid Telegram bot API URL is required." }
+                                                </span>
+                                            }} else { html! {} }}
+                                        </div>
+                                        <div class="field" style="margin-bottom:16px">
+                                            <label>{ "Chat ID" }</label>
+                                            <input
+                                                type="text"
+                                                placeholder="123456789"
+                                                value={(*form_telegram_chat_id).clone()}
+                                                oninput={on_telegram_chat_id}
+                                                class={if *chat_id_err { "input-error" } else { "" }}
+                                                autocomplete="off"
+                                            />
+                                            { if *chat_id_err { html! {
+                                                <span class="field-error">
+                                                    { "Chat ID is required." }
+                                                </span>
+                                            }} else { html! {} }}
+                                        </div>
+                                    </>
+                                },
+                            }}
 
                             <div class="modal-actions">
                                 <button type="button" class="btn btn-ghost"

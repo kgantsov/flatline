@@ -1087,6 +1087,11 @@ footer {
     color: #818cf8;
     border: 1px solid rgba(99, 102, 241, 0.2);
 }
+.channel-type-badge.telegram {
+    background: rgba(34, 158, 217, 0.1);
+    color: #229ED9;
+    border: 1px solid rgba(34, 158, 217, 0.2);
+}
 
 .link-form {
     display: flex;
@@ -1596,6 +1601,11 @@ main.narrow {
     background: rgba(74, 196, 123, 0.1);
     color: #4ac47b;
     border: 1px solid rgba(74, 196, 123, 0.2);
+}
+.type-badge.telegram {
+    background: rgba(34, 158, 217, 0.1);
+    color: #229ED9;
+    border: 1px solid rgba(34, 158, 217, 0.2);
 }
 
 /* ── Type picker (modal) ─────────────────────── */

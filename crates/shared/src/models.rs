@@ -138,6 +138,20 @@ pub enum NotificationChannelConfig {
         )]
         webhook_url: String,
     },
+
+    /// Send a message to a Telegram chat via a bot API URL.
+    Telegram {
+        /// Telegram bot API URL, e.g. `https://api.telegram.org/bot<token>/sendMessage`.
+        #[cfg_attr(
+            feature = "utoipa",
+            schema(example = "https://api.telegram.org/bot<token>/sendMessage")
+        )]
+        url: String,
+
+        /// Chat ID to send messages to.
+        #[cfg_attr(feature = "utoipa", schema(example = "123456789"))]
+        chat_id: String,
+    },
 }
 
 /// A configured notification channel.

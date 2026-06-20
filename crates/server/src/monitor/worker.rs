@@ -1,6 +1,9 @@
 use std::sync::{Arc, Mutex};
 
-use crate::{monitor::checker::CheckOutcome, notify::NotificationEvent};
+use crate::{
+    monitor::checker::CheckOutcome,
+    notify::{NotificationEvent, telegram::TelegramNotifier},
+};
 use anyhow::Result;
 use chrono::{Days, Utc};
 use shared::{
@@ -60,6 +63,9 @@ impl MonitorWorker {
             }
             NotificationChannelConfig::Slack { webhook_url } => {
                 Box::new(SlackNotifier::new(webhook_url.clone()))
+            }
+            NotificationChannelConfig::Telegram { url, chat_id } => {
+                Box::new(TelegramNotifier::new(url.clone(), chat_id.clone()))
             }
         }
     }

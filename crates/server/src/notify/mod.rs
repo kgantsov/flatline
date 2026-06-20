@@ -1,4 +1,5 @@
 pub mod slack;
+pub mod telegram;
 pub mod webhook;
 
 use anyhow::Result;

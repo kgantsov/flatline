@@ -241,6 +241,7 @@ pub struct NotificationChannelFormData {
 pub enum NotificationChannelConfigInput {
     Webhook { url: String },
     Slack { webhook_url: String },
+    Telegram { url: String, chat_id: String },
 }
 
 async fn handle_channel_response(
