@@ -1,3 +1,9 @@
+mod slack;
+mod telegram;
+mod webhook;
+
+use self::{slack::SlackForm, telegram::TelegramForm, webhook::WebhookForm};
+
 use crate::api::{
     self, NotificationChannel, NotificationChannelConfig, NotificationChannelConfigInput,
     NotificationChannelFormData,
@@ -8,7 +14,7 @@ use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
-fn is_valid_url(s: &str) -> bool {
+pub(super) fn is_valid_url(s: &str) -> bool {
     let s = s.trim();
     (s.starts_with("http://") || s.starts_with("https://")) && s.len() > 8
 }
@@ -54,13 +60,10 @@ pub fn notifications_page() -> Html {
     // Form state
     let form_name = use_state(String::new);
     let form_type = use_state(|| "webhook".to_string());
-    let form_webhook_url = use_state(String::new);
-    let form_slack_url = use_state(String::new);
-    let form_telegram_url = use_state(String::new);
-    let form_telegram_chat_id = use_state(String::new);
+    let current_config: UseStateHandle<Option<NotificationChannelConfigInput>> =
+        use_state(|| None);
     let name_err = use_state(|| false);
-    let url_err = use_state(|| false);
-    let chat_id_err = use_state(|| false);
+    let show_errors = use_state(|| false);
     let submitting = use_state(|| false);
     let modal_alert: UseStateHandle<Option<String>> = use_state(|| None);
 
@@ -81,31 +84,32 @@ pub fn notifications_page() -> Html {
         use_effect_with((), move |_| reload.emit(()));
     }
 
+    // ── Config change callback (called by form subcomponents) ──────────────────
+
+    let on_config_change = {
+        let current_config = current_config.clone();
+        Callback::from(move |config: Option<NotificationChannelConfigInput>| {
+            current_config.set(config);
+        })
+    };
+
     // ── Open create modal ──────────────────────────────────────────────────────
 
     let open_create = {
         let modal = modal.clone();
         let form_name = form_name.clone();
         let form_type = form_type.clone();
-        let form_webhook_url = form_webhook_url.clone();
-        let form_slack_url = form_slack_url.clone();
-        let form_telegram_url = form_telegram_url.clone();
-        let form_telegram_chat_id = form_telegram_chat_id.clone();
+        let current_config = current_config.clone();
         let name_err = name_err.clone();
-        let url_err = url_err.clone();
-        let chat_id_err = chat_id_err.clone();
+        let show_errors = show_errors.clone();
         let submitting = submitting.clone();
         let modal_alert = modal_alert.clone();
         Callback::from(move |_: MouseEvent| {
             form_name.set(String::new());
             form_type.set("webhook".to_string());
-            form_webhook_url.set(String::new());
-            form_slack_url.set(String::new());
-            form_telegram_url.set(String::new());
-            form_telegram_chat_id.set(String::new());
+            current_config.set(None);
             name_err.set(false);
-            url_err.set(false);
-            chat_id_err.set(false);
+            show_errors.set(false);
             submitting.set(false);
             modal_alert.set(None);
             modal.set(ChannelModal::Create);
@@ -118,43 +122,36 @@ pub fn notifications_page() -> Html {
         let modal = modal.clone();
         let form_name = form_name.clone();
         let form_type = form_type.clone();
-        let form_webhook_url = form_webhook_url.clone();
-        let form_slack_url = form_slack_url.clone();
-        let form_telegram_url = form_telegram_url.clone();
-        let form_telegram_chat_id = form_telegram_chat_id.clone();
+        let current_config = current_config.clone();
         let name_err = name_err.clone();
-        let url_err = url_err.clone();
-        let chat_id_err = chat_id_err.clone();
+        let show_errors = show_errors.clone();
         let submitting = submitting.clone();
         let modal_alert = modal_alert.clone();
         Callback::from(move |ch: NotificationChannel| {
             form_name.set(ch.name.clone());
-            match &ch.config {
-                NotificationChannelConfig::Webhook { url } => {
-                    form_type.set("webhook".to_string());
-                    form_webhook_url.set(url.clone());
-                    form_slack_url.set(String::new());
-                    form_telegram_url.set(String::new());
-                    form_telegram_chat_id.set(String::new());
-                }
-                NotificationChannelConfig::Slack { webhook_url } => {
-                    form_type.set("slack".to_string());
-                    form_webhook_url.set(String::new());
-                    form_slack_url.set(webhook_url.clone());
-                    form_telegram_url.set(String::new());
-                    form_telegram_chat_id.set(String::new());
-                }
-                NotificationChannelConfig::Telegram { url, chat_id } => {
-                    form_type.set("telegram".to_string());
-                    form_webhook_url.set(String::new());
-                    form_slack_url.set(String::new());
-                    form_telegram_url.set(url.clone());
-                    form_telegram_chat_id.set(chat_id.clone());
-                }
-            }
+            let (type_key, config) = match &ch.config {
+                NotificationChannelConfig::Webhook { url } => (
+                    "webhook",
+                    Some(NotificationChannelConfigInput::Webhook { url: url.clone() }),
+                ),
+                NotificationChannelConfig::Slack { webhook_url } => (
+                    "slack",
+                    Some(NotificationChannelConfigInput::Slack {
+                        webhook_url: webhook_url.clone(),
+                    }),
+                ),
+                NotificationChannelConfig::Telegram { url, chat_id } => (
+                    "telegram",
+                    Some(NotificationChannelConfigInput::Telegram {
+                        url: url.clone(),
+                        chat_id: chat_id.clone(),
+                    }),
+                ),
+            };
+            form_type.set(type_key.to_string());
+            current_config.set(config);
             name_err.set(false);
-            url_err.set(false);
-            chat_id_err.set(false);
+            show_errors.set(false);
             submitting.set(false);
             modal_alert.set(None);
             modal.set(ChannelModal::Edit(ch));
@@ -172,38 +169,38 @@ pub fn notifications_page() -> Html {
 
     let set_webhook = {
         let form_type = form_type.clone();
-        let url_err = url_err.clone();
-        let chat_id_err = chat_id_err.clone();
+        let current_config = current_config.clone();
+        let show_errors = show_errors.clone();
         Callback::from(move |_: MouseEvent| {
             form_type.set("webhook".to_string());
-            url_err.set(false);
-            chat_id_err.set(false);
+            current_config.set(None);
+            show_errors.set(false);
         })
     };
 
     let set_slack = {
         let form_type = form_type.clone();
-        let url_err = url_err.clone();
-        let chat_id_err = chat_id_err.clone();
+        let current_config = current_config.clone();
+        let show_errors = show_errors.clone();
         Callback::from(move |_: MouseEvent| {
             form_type.set("slack".to_string());
-            url_err.set(false);
-            chat_id_err.set(false);
+            current_config.set(None);
+            show_errors.set(false);
         })
     };
 
     let set_telegram = {
         let form_type = form_type.clone();
-        let url_err = url_err.clone();
-        let chat_id_err = chat_id_err.clone();
+        let current_config = current_config.clone();
+        let show_errors = show_errors.clone();
         Callback::from(move |_: MouseEvent| {
             form_type.set("telegram".to_string());
-            url_err.set(false);
-            chat_id_err.set(false);
+            current_config.set(None);
+            show_errors.set(false);
         })
     };
 
-    // ── Form input handlers ────────────────────────────────────────────────────
+    // ── Name input handler ─────────────────────────────────────────────────────
 
     let on_name = {
         let form_name = form_name.clone();
@@ -213,51 +210,14 @@ pub fn notifications_page() -> Html {
         })
     };
 
-    let on_webhook_url = {
-        let form_webhook_url = form_webhook_url.clone();
-        Callback::from(move |e: InputEvent| {
-            let el: HtmlInputElement = e.target_unchecked_into();
-            form_webhook_url.set(el.value());
-        })
-    };
-
-    let on_slack_url = {
-        let form_slack_url = form_slack_url.clone();
-        Callback::from(move |e: InputEvent| {
-            let el: HtmlInputElement = e.target_unchecked_into();
-            form_slack_url.set(el.value());
-        })
-    };
-
-    let on_telegram_url = {
-        let form_telegram_url = form_telegram_url.clone();
-        Callback::from(move |e: InputEvent| {
-            let el: HtmlInputElement = e.target_unchecked_into();
-            form_telegram_url.set(el.value());
-        })
-    };
-
-    let on_telegram_chat_id = {
-        let form_telegram_chat_id = form_telegram_chat_id.clone();
-        Callback::from(move |e: InputEvent| {
-            let el: HtmlInputElement = e.target_unchecked_into();
-            form_telegram_chat_id.set(el.value());
-        })
-    };
-
     // ── Submit ─────────────────────────────────────────────────────────────────
 
     let on_submit = {
         let modal = modal.clone();
         let form_name = form_name.clone();
-        let form_type = form_type.clone();
-        let form_webhook_url = form_webhook_url.clone();
-        let form_slack_url = form_slack_url.clone();
-        let form_telegram_url = form_telegram_url.clone();
-        let form_telegram_chat_id = form_telegram_chat_id.clone();
+        let current_config = current_config.clone();
         let name_err = name_err.clone();
-        let url_err = url_err.clone();
-        let chat_id_err = chat_id_err.clone();
+        let show_errors = show_errors.clone();
         let submitting = submitting.clone();
         let modal_alert = modal_alert.clone();
         let reload = reload.clone();
@@ -266,36 +226,17 @@ pub fn notifications_page() -> Html {
             e.prevent_default();
 
             let name_ok = !(*form_name).trim().is_empty();
-            let (url_ok, chat_id_ok) = match (*form_type).as_str() {
-                "webhook" => (is_valid_url(&form_webhook_url), true),
-                "slack" => (is_valid_url(&form_slack_url), true),
-                _ => (
-                    is_valid_url(&form_telegram_url),
-                    !(*form_telegram_chat_id).trim().is_empty(),
-                ),
-            };
+            let config_ok = (*current_config).is_some();
 
             name_err.set(!name_ok);
-            url_err.set(!url_ok);
-            chat_id_err.set(!chat_id_ok);
+            show_errors.set(true);
 
-            if !name_ok || !url_ok || !chat_id_ok {
+            if !name_ok || !config_ok {
                 return;
             }
 
             let name = (*form_name).trim().to_string();
-            let config = match (*form_type).as_str() {
-                "webhook" => NotificationChannelConfigInput::Webhook {
-                    url: (*form_webhook_url).trim().to_string(),
-                },
-                "slack" => NotificationChannelConfigInput::Slack {
-                    webhook_url: (*form_slack_url).trim().to_string(),
-                },
-                _ => NotificationChannelConfigInput::Telegram {
-                    url: (*form_telegram_url).trim().to_string(),
-                    chat_id: (*form_telegram_chat_id).trim().to_string(),
-                },
-            };
+            let config = (*current_config).clone().unwrap();
             let data = NotificationChannelFormData { name, config };
 
             let editing_id = match &*modal {
@@ -483,8 +424,7 @@ pub fn notifications_page() -> Html {
 
             // ── Create / Edit modal ────────────────────────────────────────────
             { if modal_open { html! {
-                <div class="modal-overlay"
-                    onclick={close_modal.clone()}>
+                <div class="modal-overlay" onclick={close_modal.clone()}>
                     <div class="modal modal-wide"
                         onclick={Callback::from(|e: MouseEvent| e.stop_propagation())}>
                         <h3>{ if is_edit { "Edit channel" } else { "New channel" } }</h3>
@@ -541,75 +481,56 @@ pub fn notifications_page() -> Html {
                             </div>
 
                             { match (*form_type).as_str() {
-                                "webhook" => html! {
-                                    <div class="field" style="margin-bottom:16px">
-                                        <label>{ "Webhook URL" }</label>
-                                        <input
-                                            type="url"
-                                            placeholder="https://example.com/webhook"
-                                            value={(*form_webhook_url).clone()}
-                                            oninput={on_webhook_url}
-                                            class={if *url_err { "input-error" } else { "" }}
-                                            autocomplete="off"
+                                "webhook" => {
+                                    let initial_url = match &*modal {
+                                        ChannelModal::Edit(ch) => match &ch.config {
+                                            NotificationChannelConfig::Webhook { url } => url.clone(),
+                                            _ => String::new(),
+                                        },
+                                        _ => String::new(),
+                                    };
+                                    html! {
+                                        <WebhookForm
+                                            initial_url={initial_url}
+                                            show_errors={*show_errors}
+                                            on_change={on_config_change.clone()}
                                         />
-                                        { if *url_err { html! {
-                                            <span class="field-error">{ "A valid URL is required." }</span>
-                                        }} else { html! {} }}
-                                    </div>
+                                    }
                                 },
-                                "slack" => html! {
-                                    <div class="field" style="margin-bottom:16px">
-                                        <label>{ "Slack incoming webhook URL" }</label>
-                                        <input
-                                            type="url"
-                                            placeholder="https://hooks.slack.com/services/\u{2026}"
-                                            value={(*form_slack_url).clone()}
-                                            oninput={on_slack_url}
-                                            class={if *url_err { "input-error" } else { "" }}
-                                            autocomplete="off"
+                                "slack" => {
+                                    let initial_url = match &*modal {
+                                        ChannelModal::Edit(ch) => match &ch.config {
+                                            NotificationChannelConfig::Slack { webhook_url } => webhook_url.clone(),
+                                            _ => String::new(),
+                                        },
+                                        _ => String::new(),
+                                    };
+                                    html! {
+                                        <SlackForm
+                                            initial_url={initial_url}
+                                            show_errors={*show_errors}
+                                            on_change={on_config_change.clone()}
                                         />
-                                        { if *url_err { html! {
-                                            <span class="field-error">
-                                                { "A valid Slack webhook URL is required." }
-                                            </span>
-                                        }} else { html! {} }}
-                                    </div>
+                                    }
                                 },
-                                _ => html! {
-                                    <>
-                                        <div class="field" style="margin-bottom:16px">
-                                            <label>{ "Bot API URL" }</label>
-                                            <input
-                                                type="url"
-                                                placeholder="https://api.telegram.org/bot<token>/sendMessage"
-                                                value={(*form_telegram_url).clone()}
-                                                oninput={on_telegram_url}
-                                                class={if *url_err { "input-error" } else { "" }}
-                                                autocomplete="off"
-                                            />
-                                            { if *url_err { html! {
-                                                <span class="field-error">
-                                                    { "A valid Telegram bot API URL is required." }
-                                                </span>
-                                            }} else { html! {} }}
-                                        </div>
-                                        <div class="field" style="margin-bottom:16px">
-                                            <label>{ "Chat ID" }</label>
-                                            <input
-                                                type="text"
-                                                placeholder="123456789"
-                                                value={(*form_telegram_chat_id).clone()}
-                                                oninput={on_telegram_chat_id}
-                                                class={if *chat_id_err { "input-error" } else { "" }}
-                                                autocomplete="off"
-                                            />
-                                            { if *chat_id_err { html! {
-                                                <span class="field-error">
-                                                    { "Chat ID is required." }
-                                                </span>
-                                            }} else { html! {} }}
-                                        </div>
-                                    </>
+                                _ => {
+                                    let (initial_url, initial_chat_id) = match &*modal {
+                                        ChannelModal::Edit(ch) => match &ch.config {
+                                            NotificationChannelConfig::Telegram { url, chat_id } => {
+                                                (url.clone(), chat_id.clone())
+                                            }
+                                            _ => (String::new(), String::new()),
+                                        },
+                                        _ => (String::new(), String::new()),
+                                    };
+                                    html! {
+                                        <TelegramForm
+                                            initial_url={initial_url}
+                                            initial_chat_id={initial_chat_id}
+                                            show_errors={*show_errors}
+                                            on_change={on_config_change.clone()}
+                                        />
+                                    }
                                 },
                             }}
 

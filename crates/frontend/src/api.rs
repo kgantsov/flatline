@@ -122,7 +122,7 @@ pub struct MonitorFormData {
     pub config: MonitorConfigInput,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum MonitorConfigInput {
     Http {
@@ -236,7 +236,7 @@ pub struct NotificationChannelFormData {
     pub config: NotificationChannelConfigInput,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum NotificationChannelConfigInput {
     Webhook { url: String },
