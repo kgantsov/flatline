@@ -37,7 +37,7 @@ use crate::{
 };
 use rust_embed::RustEmbed;
 use shared::models::{
-    HttpMethod, Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig,
+    HttpBody, HttpMethod, Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig,
     MonitorNotification, NotificationChannel, NotificationChannelConfig, SseEvent,
 };
 use shared::{
@@ -131,6 +131,7 @@ impl Modify for SecurityAddon {
             UpdateMonitorRequest,
             Monitor,
             MonitorConfig,
+            HttpBody,
             MonitorCheck,
             HttpMethod,
             MonitorCheckStatus,

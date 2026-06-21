@@ -276,6 +276,8 @@ mod tests {
                 url: "https://example.com".to_string(),
                 method: None,
                 expected_status: None,
+                headers: None,
+                body: None,
             },
             interval: 60,
             timeout: 10,

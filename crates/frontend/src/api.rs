@@ -1,6 +1,7 @@
 pub use shared::models::{
-    Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig, MonitorNotification,
-    MonitorStats, NotificationChannel, NotificationChannelConfig, SseEvent, User,
+    HttpBody, Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig,
+    MonitorNotification, MonitorStats, NotificationChannel, NotificationChannelConfig, SseEvent,
+    User,
 };
 
 use serde::Serialize;
@@ -111,6 +112,17 @@ struct ToggleBody {
     enabled: bool,
 }
 
+#[derive(Clone, Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum HttpBodyInput {
+    Json {
+        content: serde_json::Value,
+    },
+    Form {
+        fields: std::collections::HashMap<String, String>,
+    },
+}
+
 /// Used for both create (POST) and full update (PATCH).
 #[derive(Serialize)]
 pub struct MonitorFormData {
@@ -130,6 +142,10 @@ pub enum MonitorConfigInput {
         method: String,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         expected_status: Vec<u16>,
+        #[serde(skip_serializing_if = "std::collections::HashMap::is_empty")]
+        headers: std::collections::HashMap<String, String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        body: Option<HttpBodyInput>,
     },
 }
 

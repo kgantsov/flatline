@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use axum::async_trait;
 use reqwest::{Client, Method};
-use shared::models::HttpMethod;
+use shared::models::{HttpBody, HttpMethod};
 
 use crate::monitor::checker::{CheckOutcome, Checker, Status};
 
@@ -12,6 +13,8 @@ pub struct HttpChecker {
     method: Method,
     expected_status: Vec<u16>,
     timeout: Duration,
+    headers: HashMap<String, String>,
+    body: Option<HttpBody>,
 }
 
 impl HttpChecker {
@@ -20,6 +23,8 @@ impl HttpChecker {
         method: Option<HttpMethod>,
         expected_status: Option<Vec<u16>>,
         timeout: Duration,
+        headers: Option<HashMap<String, String>>,
+        body: Option<HttpBody>,
     ) -> Self {
         let method = match method.unwrap_or(HttpMethod::Get) {
             HttpMethod::Get => Method::GET,
@@ -36,6 +41,8 @@ impl HttpChecker {
             method,
             expected_status: expected_status.unwrap_or_else(|| vec![200]),
             timeout,
+            headers: headers.unwrap_or_default(),
+            body,
         }
     }
 }
@@ -44,10 +51,20 @@ impl HttpChecker {
 impl Checker for HttpChecker {
     async fn check(&self) -> CheckOutcome {
         let start_time = std::time::Instant::now();
-        let req = self
+        let mut req = self
             .client
             .request(self.method.clone(), &self.url)
             .timeout(self.timeout);
+
+        for (key, value) in &self.headers {
+            req = req.header(key, value);
+        }
+
+        req = match &self.body {
+            Some(HttpBody::Json { content }) => req.json(content),
+            Some(HttpBody::Form { fields }) => req.form(fields),
+            None => req,
+        };
 
         match req.send().await {
             Ok(response) => {

@@ -29,6 +29,22 @@ impl std::fmt::Display for HttpMethod {
     }
 }
 
+/// Body content for an HTTP monitor request.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum HttpBody {
+    /// Send a JSON body with `Content-Type: application/json`.
+    Json {
+        #[cfg_attr(feature = "utoipa", schema(value_type = Object))]
+        content: serde_json::Value,
+    },
+    /// Send a form-encoded body with `Content-Type: application/x-www-form-urlencoded`.
+    Form {
+        fields: std::collections::HashMap<String, String>,
+    },
+}
+
 /// Protocol-specific monitor configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
@@ -44,6 +60,12 @@ pub enum MonitorConfig {
         /// Expected HTTP status codes. Defaults to any 2xx.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         expected_status: Option<Vec<u16>>,
+        /// Custom request headers.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        headers: Option<std::collections::HashMap<String, String>>,
+        /// Request body to send.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        body: Option<HttpBody>,
     },
 }
 

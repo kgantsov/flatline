@@ -4,7 +4,7 @@ use crate::api::{self, MonitorConfigInput, MonitorFormData, MonitorNotification,
 use crate::layout::Layout;
 use crate::routes::Route;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::{HtmlInputElement, InputEvent, KeyboardEvent};
+use web_sys::{HtmlInputElement, HtmlTextAreaElement, InputEvent, KeyboardEvent};
 use yew::prelude::*;
 use yew_router::prelude::*;
 
@@ -66,6 +66,12 @@ pub fn create_page() -> Html {
     let notifications = use_state(Vec::<MonitorNotification>::new);
     let all_channels = use_state(Vec::<NotificationChannel>::new);
 
+    let req_headers = use_state(Vec::<(String, String)>::new);
+    let body_type = use_state(|| "none".to_string());
+    let body_json = use_state(String::new);
+    let body_json_err = use_state(|| false);
+    let body_form_fields = use_state(Vec::<(String, String)>::new);
+
     // Load existing monitor in edit mode
     {
         let edit_id = edit_id.clone();
@@ -80,6 +86,10 @@ pub fn create_page() -> Html {
         let alert = alert.clone();
         let notifications = notifications.clone();
         let all_channels = all_channels.clone();
+        let req_headers = req_headers.clone();
+        let body_type = body_type.clone();
+        let body_json = body_json.clone();
+        let body_form_fields = body_form_fields.clone();
 
         use_effect_with(edit_id.clone(), move |edit_id| {
             let Some(id) = edit_id.clone() else { return; };
@@ -88,7 +98,7 @@ pub fn create_page() -> Html {
                     Ok(m) => {
                         name.set(m.name.clone());
                         match &m.config {
-                            crate::api::MonitorConfig::Http { url: u, method: meth, expected_status } => {
+                            crate::api::MonitorConfig::Http { url: u, method: meth, expected_status, headers: hdrs, body: b } => {
                                 url.set(u.clone());
                                 if let Some(meth) = meth {
                                     method.set(meth.to_string());
@@ -97,6 +107,20 @@ pub fn create_page() -> Html {
                                     && !codes.is_empty() {
                                         status_codes.set(codes.clone());
                                     }
+                                if let Some(hdrs) = hdrs {
+                                    req_headers.set(hdrs.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+                                }
+                                match b {
+                                    Some(crate::api::HttpBody::Json { content }) => {
+                                        body_type.set("json".to_string());
+                                        body_json.set(serde_json::to_string_pretty(content).unwrap_or_default());
+                                    }
+                                    Some(crate::api::HttpBody::Form { fields }) => {
+                                        body_type.set("form".to_string());
+                                        body_form_fields.set(fields.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+                                    }
+                                    None => {}
+                                }
                             }
                         }
                         interval.set(m.interval);
@@ -223,6 +247,95 @@ pub fn create_page() -> Html {
         Callback::from(move |v: u32| timeout_secs.set(v))
     };
 
+    let on_body_json = {
+        let body_json = body_json.clone();
+        Callback::from(move |e: InputEvent| {
+            let el: HtmlTextAreaElement = e.target_unchecked_into();
+            body_json.set(el.value());
+        })
+    };
+
+    let on_body_type_select = {
+        let body_type = body_type.clone();
+        Callback::from(move |t: String| body_type.set(t))
+    };
+
+    let on_add_header = {
+        let req_headers = req_headers.clone();
+        Callback::from(move |_: ()| {
+            let mut hdrs = (*req_headers).clone();
+            hdrs.push((String::new(), String::new()));
+            req_headers.set(hdrs);
+        })
+    };
+
+    let on_remove_header = {
+        let req_headers = req_headers.clone();
+        Callback::from(move |i: usize| {
+            let hdrs: Vec<_> = (*req_headers).iter().enumerate()
+                .filter(|&(j, _)| j != i)
+                .map(|(_, v)| v.clone())
+                .collect();
+            req_headers.set(hdrs);
+        })
+    };
+
+    let on_header_key = {
+        let req_headers = req_headers.clone();
+        Callback::from(move |(i, val): (usize, String)| {
+            let mut hdrs = (*req_headers).clone();
+            if let Some(row) = hdrs.get_mut(i) { row.0 = val; }
+            req_headers.set(hdrs);
+        })
+    };
+
+    let on_header_val = {
+        let req_headers = req_headers.clone();
+        Callback::from(move |(i, val): (usize, String)| {
+            let mut hdrs = (*req_headers).clone();
+            if let Some(row) = hdrs.get_mut(i) { row.1 = val; }
+            req_headers.set(hdrs);
+        })
+    };
+
+    let on_add_form_field = {
+        let body_form_fields = body_form_fields.clone();
+        Callback::from(move |_: ()| {
+            let mut fields = (*body_form_fields).clone();
+            fields.push((String::new(), String::new()));
+            body_form_fields.set(fields);
+        })
+    };
+
+    let on_remove_form_field = {
+        let body_form_fields = body_form_fields.clone();
+        Callback::from(move |i: usize| {
+            let fields: Vec<_> = (*body_form_fields).iter().enumerate()
+                .filter(|&(j, _)| j != i)
+                .map(|(_, v)| v.clone())
+                .collect();
+            body_form_fields.set(fields);
+        })
+    };
+
+    let on_form_field_key = {
+        let body_form_fields = body_form_fields.clone();
+        Callback::from(move |(i, val): (usize, String)| {
+            let mut fields = (*body_form_fields).clone();
+            if let Some(row) = fields.get_mut(i) { row.0 = val; }
+            body_form_fields.set(fields);
+        })
+    };
+
+    let on_form_field_val = {
+        let body_form_fields = body_form_fields.clone();
+        Callback::from(move |(i, val): (usize, String)| {
+            let mut fields = (*body_form_fields).clone();
+            if let Some(row) = fields.get_mut(i) { row.1 = val; }
+            body_form_fields.set(fields);
+        })
+    };
+
     // ── Submit ────────────────────────────────────────────────────────────────
     let on_submit = {
         let name = name.clone();
@@ -242,6 +355,11 @@ pub fn create_page() -> Html {
         let alert = alert.clone();
         let edit_id = edit_id.clone();
         let navigator = navigator.clone();
+        let req_headers = req_headers.clone();
+        let body_type = body_type.clone();
+        let body_json = body_json.clone();
+        let body_json_err = body_json_err.clone();
+        let body_form_fields = body_form_fields.clone();
 
         Callback::from(move |e: SubmitEvent| {
             e.prevent_default();
@@ -261,6 +379,43 @@ pub fn create_page() -> Html {
             timeout_err.set(!to_ok);
             retries_err.set(!rt_ok);
 
+            let headers_map: std::collections::HashMap<String, String> = (*req_headers)
+                .iter()
+                .filter(|(k, _)| !k.trim().is_empty())
+                .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+                .collect();
+
+            body_json_err.set(false);
+            let body_result: Result<Option<api::HttpBodyInput>, ()> = match (*body_type).as_str() {
+                "json" => {
+                    let s = (*body_json).trim().to_string();
+                    if s.is_empty() {
+                        Ok(None)
+                    } else {
+                        serde_json::from_str::<serde_json::Value>(&s)
+                            .map(|content| Some(api::HttpBodyInput::Json { content }))
+                            .map_err(|_| ())
+                    }
+                }
+                "form" => {
+                    let fields: std::collections::HashMap<String, String> = (*body_form_fields)
+                        .iter()
+                        .filter(|(k, _)| !k.trim().is_empty())
+                        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+                        .collect();
+                    Ok(if fields.is_empty() { None } else { Some(api::HttpBodyInput::Form { fields }) })
+                }
+                _ => Ok(None),
+            };
+
+            let body = match body_result {
+                Ok(b) => b,
+                Err(()) => {
+                    body_json_err.set(true);
+                    return;
+                }
+            };
+
             if !n_ok || !u_ok || !iv_ok || !to_ok || !rt_ok { return; }
 
             submitting.set(true);
@@ -276,6 +431,8 @@ pub fn create_page() -> Html {
                     url: (*url).trim().to_string(),
                     method: (*method).clone(),
                     expected_status: (*status_codes).clone(),
+                    headers: headers_map,
+                    body,
                 },
             };
 
@@ -358,6 +515,21 @@ pub fn create_page() -> Html {
                 notifications={(*notifications).clone()}
                 all_channels={(*all_channels).clone()}
                 on_reload_notifs={on_reload_notifs}
+                req_headers={(*req_headers).clone()}
+                body_type={(*body_type).clone()}
+                body_json={(*body_json).clone()}
+                body_json_err={*body_json_err}
+                body_form_fields={(*body_form_fields).clone()}
+                on_body_json={on_body_json}
+                on_body_type_select={on_body_type_select}
+                on_add_header={on_add_header}
+                on_remove_header={on_remove_header}
+                on_header_key={on_header_key}
+                on_header_val={on_header_val}
+                on_add_form_field={on_add_form_field}
+                on_remove_form_field={on_remove_form_field}
+                on_form_field_key={on_form_field_key}
+                on_form_field_val={on_form_field_val}
             />
         </Layout>
     }

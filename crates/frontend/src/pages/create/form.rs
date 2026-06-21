@@ -1,5 +1,6 @@
 use crate::api::{MonitorNotification, NotificationChannel};
 use crate::components::NotifLinker;
+use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
 const METHODS: &[&str] = &["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"];
@@ -66,6 +67,23 @@ pub(super) struct CreateFormProps {
     pub notifications: Vec<MonitorNotification>,
     pub all_channels: Vec<NotificationChannel>,
     pub on_reload_notifs: Callback<()>,
+    // request headers
+    pub req_headers: Vec<(String, String)>,
+    pub on_add_header: Callback<()>,
+    pub on_remove_header: Callback<usize>,
+    pub on_header_key: Callback<(usize, String)>,
+    pub on_header_val: Callback<(usize, String)>,
+    // request body
+    pub body_type: String,
+    pub body_json: String,
+    pub body_json_err: bool,
+    pub body_form_fields: Vec<(String, String)>,
+    pub on_body_json: Callback<InputEvent>,
+    pub on_body_type_select: Callback<String>,
+    pub on_add_form_field: Callback<()>,
+    pub on_remove_form_field: Callback<usize>,
+    pub on_form_field_key: Callback<(usize, String)>,
+    pub on_form_field_val: Callback<(usize, String)>,
 }
 
 #[function_component(CreateForm)]
@@ -214,6 +232,123 @@ pub(super) fn create_form(props: &CreateFormProps) -> Html {
                             <div class="field-hint">
                                 { "Leave empty to accept any 2xx. Common codes: 200, 201, 204." }
                             </div>
+                        </div>
+
+                        <div class="field">
+                            <label>{ "Request headers" }</label>
+                            { for props.req_headers.iter().enumerate().map(|(i, (k, v))| {
+                                let on_key = {
+                                    let cb = props.on_header_key.clone();
+                                    Callback::from(move |e: InputEvent| {
+                                        let el: HtmlInputElement = e.target_unchecked_into();
+                                        cb.emit((i, el.value()));
+                                    })
+                                };
+                                let on_val = {
+                                    let cb = props.on_header_val.clone();
+                                    Callback::from(move |e: InputEvent| {
+                                        let el: HtmlInputElement = e.target_unchecked_into();
+                                        cb.emit((i, el.value()));
+                                    })
+                                };
+                                let on_remove = {
+                                    let cb = props.on_remove_header.clone();
+                                    Callback::from(move |_: MouseEvent| cb.emit(i))
+                                };
+                                html! {
+                                    <div key={i.to_string()} class="kv-row">
+                                        <input type="text" placeholder="Name" value={k.clone()}
+                                            oninput={on_key} autocomplete="off" />
+                                        <input type="text" placeholder="Value" value={v.clone()}
+                                            oninput={on_val} autocomplete="off" />
+                                        <button type="button" class="kv-remove" onclick={on_remove}>
+                                            { "×" }
+                                        </button>
+                                    </div>
+                                }
+                            })}
+                            <button type="button" class="btn btn-ghost btn-sm" onclick={{
+                                let cb = props.on_add_header.clone();
+                                Callback::from(move |_: MouseEvent| cb.emit(()))
+                            }}>
+                                { "+ Add header" }
+                            </button>
+                        </div>
+
+                        <div class="field">
+                            <label>{ "Request body" }</label>
+                            <div class="method-picker">
+                                { for [("none", "None"), ("json", "JSON"), ("form", "Form")].iter().map(|&(t, label)| {
+                                    let cb = props.on_body_type_select.clone();
+                                    let cls = if props.body_type == t { "method-pill selected" } else { "method-pill" };
+                                    html! {
+                                        <span class={cls} onclick={Callback::from(move |_: MouseEvent| cb.emit(t.to_string()))}>
+                                            { label }
+                                        </span>
+                                    }
+                                })}
+                            </div>
+                            { if props.body_type == "json" {
+                                html! {
+                                    <>
+                                    <textarea
+                                        class={if props.body_json_err { "input-error" } else { "" }}
+                                        placeholder="{\"key\": \"value\"}"
+                                        value={props.body_json.clone()}
+                                        oninput={props.on_body_json.clone()}
+                                        rows="5"
+                                        style="font-family: monospace; resize: vertical; margin-top: 8px;"
+                                    />
+                                    { if props.body_json_err { html! {
+                                        <span class="field-error">{ "Invalid JSON." }</span>
+                                    }} else { html! {} }}
+                                    </>
+                                }
+                            } else if props.body_type == "form" {
+                                html! {
+                                    <>
+                                    { for props.body_form_fields.iter().enumerate().map(|(i, (k, v))| {
+                                        let on_key = {
+                                            let cb = props.on_form_field_key.clone();
+                                            Callback::from(move |e: InputEvent| {
+                                                let el: HtmlInputElement = e.target_unchecked_into();
+                                                cb.emit((i, el.value()));
+                                            })
+                                        };
+                                        let on_val = {
+                                            let cb = props.on_form_field_val.clone();
+                                            Callback::from(move |e: InputEvent| {
+                                                let el: HtmlInputElement = e.target_unchecked_into();
+                                                cb.emit((i, el.value()));
+                                            })
+                                        };
+                                        let on_remove = {
+                                            let cb = props.on_remove_form_field.clone();
+                                            Callback::from(move |_: MouseEvent| cb.emit(i))
+                                        };
+                                        html! {
+                                            <div key={i.to_string()} class="kv-row">
+                                                <input type="text" placeholder="Name" value={k.clone()}
+                                                    oninput={on_key} autocomplete="off" />
+                                                <input type="text" placeholder="Value" value={v.clone()}
+                                                    oninput={on_val} autocomplete="off" />
+                                                <button type="button" class="kv-remove" onclick={on_remove}>
+                                                    { "×" }
+                                                </button>
+                                            </div>
+                                        }
+                                    })}
+                                    <button type="button" class="btn btn-ghost btn-sm" onclick={{
+                                        let cb = props.on_add_form_field.clone();
+                                        Callback::from(move |_: MouseEvent| cb.emit(()))
+                                    }}>
+                                        { "+ Add field" }
+                                    </button>
+                                    </>
+                                }
+                            } else {
+                                html! {}
+                            }}
                         </div>
 
                     </div>

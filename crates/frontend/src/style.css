@@ -1516,6 +1516,33 @@ main.narrow {
     max-width: 680px;
 }
 
+/* ── Key-value rows (headers / form fields) ─────────────────────────────── */
+
+.kv-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.kv-remove {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+    transition: color 0.15s, background 0.15s;
+}
+
+.kv-remove:hover {
+    color: var(--down);
+    background: var(--down-bg);
+}
+
 /* ── Notifications page ──────────────────────────────────────────────────── */
 
 .btn-sm {

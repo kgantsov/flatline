@@ -47,11 +47,15 @@ impl MonitorWorker {
                 ref url,
                 ref method,
                 ref expected_status,
+                ref headers,
+                ref body,
             } => Box::new(HttpChecker::new(
                 url.clone(),
                 method.clone(),
                 expected_status.clone(),
                 Duration::from_secs(monitor.timeout as u64),
+                headers.clone(),
+                body.clone(),
             )),
         }
     }
