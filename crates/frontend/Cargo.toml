@@ -3,6 +3,17 @@ name = "frontend"
 version = "0.1.0"
 edition = "2024"
 
+# Standalone workspace so this profile applies to the wasm build only
+# (the root workspace excludes this crate).
+[workspace]
+
+[profile.release]
+opt-level = 'z'   # optimize for size
+lto = true
+codegen-units = 1
+panic = 'abort'
+strip = true
+
 [dependencies]
 shared = { path = "../shared" }
 uuid = { version = "1" }

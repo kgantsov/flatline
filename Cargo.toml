@@ -1,5 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["crates/server", "crates/shared", "crates/frontend"]
+members = ["crates/server", "crates/shared"]
+# frontend is its own workspace (crates/frontend/Cargo.toml) so it can carry a
+# size-optimized [profile.release] without degrading the server binary.
+exclude = ["crates/frontend"]
 
 [workspace.dependencies]
