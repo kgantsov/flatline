@@ -455,11 +455,133 @@ main {
     height: 28px;
 }
 
+.bar-col {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    height: 100%;
+    flex-shrink: 0;
+}
+
 .sparkline-bar {
     width: 4px;
     border-radius: 2px;
     background: var(--border);
     flex-shrink: 0;
+    transition:
+        transform 0.12s ease,
+        opacity 0.12s ease;
+    transform-origin: bottom center;
+}
+
+.bar-col:hover .sparkline-bar {
+    transform: scaleY(1.15);
+    opacity: 1;
+}
+
+.bar-tooltip {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    z-index: 10;
+}
+
+.bar-tooltip::after {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-bottom-color: var(--border);
+}
+
+.bar-col:hover .bar-tooltip {
+    opacity: 1;
+}
+
+.bar-tooltip-time {
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.bar-tooltip-value {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.bar-tooltip-code {
+    font-size: 11px;
+    font-family: "JetBrains Mono", monospace;
+    color: var(--up);
+}
+
+.bar-tooltip-code.down {
+    color: var(--down);
+}
+
+.bar-tooltip-error {
+    font-size: 11px;
+    max-width: 200px;
+    white-space: normal;
+    text-align: center;
+    color: var(--down);
+}
+
+/* chart card must not clip the hover tooltips that render outside the bars,
+   and must sit above the following cards while a tooltip is showing.
+   `.card.chart-card` beats the later `.card { overflow: hidden }` rule. */
+.card.chart-card {
+    overflow: visible;
+    position: relative;
+}
+
+.card.chart-card:hover {
+    z-index: 20;
+}
+
+/* response-time bar chart (monitor page) */
+.bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.bar-chart .bar-col {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.chart-bar {
+    width: 100%;
+    border-radius: 1px 1px 0 0;
+    background: var(--accent);
+    opacity: 0.75;
+    transition: opacity 0.12s ease;
+}
+
+.chart-bar.down {
+    background: var(--down);
+    opacity: 0.85;
+}
+
+.bar-col:hover .chart-bar {
+    opacity: 1;
 }
 
 .sparkline-bar.up {
@@ -1089,12 +1211,12 @@ footer {
 }
 .channel-type-badge.discord {
     background: rgba(88, 101, 242, 0.1);
-    color: #5865F2;
+    color: #5865f2;
     border: 1px solid rgba(88, 101, 242, 0.2);
 }
 .channel-type-badge.telegram {
     background: rgba(34, 158, 217, 0.1);
-    color: #229ED9;
+    color: #229ed9;
     border: 1px solid rgba(34, 158, 217, 0.2);
 }
 
@@ -1535,7 +1657,9 @@ main.narrow {
     line-height: 1;
     padding: 4px 6px;
     border-radius: var(--radius-sm);
-    transition: color 0.15s, background 0.15s;
+    transition:
+        color 0.15s,
+        background 0.15s;
 }
 
 .kv-remove:hover {
@@ -1636,12 +1760,12 @@ main.narrow {
 }
 .type-badge.discord {
     background: rgba(88, 101, 242, 0.1);
-    color: #5865F2;
+    color: #5865f2;
     border: 1px solid rgba(88, 101, 242, 0.2);
 }
 .type-badge.telegram {
     background: rgba(34, 158, 217, 0.1);
-    color: #229ED9;
+    color: #229ed9;
     border: 1px solid rgba(34, 158, 217, 0.2);
 }
 

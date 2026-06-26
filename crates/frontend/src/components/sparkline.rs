@@ -1,5 +1,5 @@
 use crate::api::{MonitorCheck, MonitorCheckStatus};
-use crate::utils::fmt_ms;
+use crate::components::bar_tooltip;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -23,8 +23,12 @@ pub fn sparkline(props: &SparklineProps) -> Html {
                 15
             };
             let style = format!("height:{}%", h);
-            let title = format!("{} — {}", c.status, fmt_ms(c.response_time_ms));
-            html! { <div class={cls} style={style} title={title}></div> }
+            html! {
+                <div class="bar-col">
+                    <div class={cls} style={style}></div>
+                    { bar_tooltip(c) }
+                </div>
+            }
         })
         .collect();
 

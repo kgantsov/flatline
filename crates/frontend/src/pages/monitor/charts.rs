@@ -1,4 +1,5 @@
 use crate::api::{Incident, MonitorCheck, MonitorCheckStatus};
+use crate::components::bar_tooltip;
 use crate::utils::{fmt_date, fmt_duration, fmt_ms};
 use yew::prelude::*;
 
@@ -14,45 +15,28 @@ pub(super) fn response_chart(checks: &[MonitorCheck]) -> Html {
         .max()
         .unwrap_or(1)
         .max(1);
-    let n = data.len();
-    let vw = 600.0f64;
-    let vh = 160.0f64;
-    let slot = vw / n as f64;
-    let bar_w = (slot - 1.5).max(2.0);
 
     let bars: Vec<Html> = data
         .iter()
-        .enumerate()
-        .map(|(i, c)| {
-            let x = i as f64 * slot;
-            let bar_h = (c.response_time_ms as f64 / max_ms as f64 * vh).max(2.0);
-            let y = vh - bar_h;
-            let fill = if c.status == MonitorCheckStatus::Up {
-                "rgba(99,102,241,.75)"
+        .map(|c| {
+            let h = (c.response_time_ms as f64 / max_ms as f64 * 100.0).max(2.0);
+            let cls = if c.status == MonitorCheckStatus::Up {
+                "chart-bar"
             } else {
-                "rgba(239,68,68,.8)"
+                "chart-bar down"
             };
-            let checked_at_str = c.checked_at.to_rfc3339();
-            let d = js_sys::Date::new(&wasm_bindgen::JsValue::from_str(&checked_at_str));
-            let label = format!("{:02}:{:02}", d.get_hours(), d.get_minutes());
             html! {
-                <rect
-                    x={format!("{:.1}", x)} y={format!("{:.1}", y)}
-                    width={format!("{:.1}", bar_w)} height={format!("{:.1}", bar_h)}
-                    fill={fill} rx="1">
-                    <title>{ format!("{} – {}ms", label, c.response_time_ms) }</title>
-                </rect>
+                <div class="bar-col">
+                    <div class={cls} style={format!("height:{:.1}%", h)}></div>
+                    { bar_tooltip(c) }
+                </div>
             }
         })
         .collect();
 
     html! {
-        <div class="chart-wrap">
-            <svg viewBox={format!("0 0 {} {}", vw, vh)}
-                 preserveAspectRatio="none"
-                 style="width:100%;height:100%;display:block">
-                { for bars }
-            </svg>
+        <div class="chart-wrap bar-chart">
+            { for bars }
         </div>
     }
 }

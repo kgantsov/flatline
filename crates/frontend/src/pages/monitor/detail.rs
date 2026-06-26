@@ -282,7 +282,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                 }
             } else { html! {} }}
 
-            <div class="card">
+            <div class="card chart-card">
                 <div class="card-header">
                     <span class="card-title">{ "Response time" }</span>
                     <span style="font-size:12px;color:var(--text-muted)">
