@@ -40,6 +40,7 @@ pub trait CheckRepository: Send + Sync {
         limit: i64,
         before: Option<DateTime<Utc>>,
     ) -> Result<Vec<MonitorCheck>, ApiError>;
+    async fn delete_old_checks(&self, before: DateTime<chrono::Utc>) -> Result<(), ApiError>;
 }
 
 #[automock]

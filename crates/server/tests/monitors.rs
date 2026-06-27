@@ -52,6 +52,7 @@ mod tests {
         impl CheckRepository for CheckRepo {
             async fn create(&self, check: CreateMonitorCheckRequest) -> Result<MonitorCheck, ApiError>;
             async fn list_for_monitor(&self, monitor_id: Uuid, limit: i64, before: Option<chrono::DateTime<Utc>>) -> Result<Vec<MonitorCheck>, ApiError>;
+            async fn delete_old_checks(&self, before: chrono::DateTime<Utc>) -> Result<(), ApiError>;
         }
     }
 
@@ -157,6 +158,8 @@ mod tests {
                 oauth_client_secret: String::from("oauth_client_secret"),
                 oauth_redirect_url: String::from("https://example.com/callback"),
                 jwt_secret: String::from("jwt_secret"),
+                sweep_interval_seconds: 60,
+                monitor_checks_retention_days: 180,
             },
             monitors: Arc::new(monitors_mock),
             checks: Arc::new(checks_mock),

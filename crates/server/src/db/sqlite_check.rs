@@ -90,7 +90,7 @@ impl CheckRepository for SqliteCheckRepository {
                     other => {
                         return Err(ApiError::InternalServerError(format!(
                             "unknown status: {other}"
-                        )))
+                        )));
                     }
                 };
                 let checked_at = DateTime::parse_from_rfc3339(&checked_at_str)?.with_timezone(&Utc);
@@ -106,5 +106,17 @@ impl CheckRepository for SqliteCheckRepository {
                 })
             })
             .collect()
+    }
+
+    async fn delete_old_checks(&self, before: DateTime<Utc>) -> Result<(), ApiError> {
+        let before_str = before.to_rfc3339();
+        sqlx::query!(
+            "DELETE FROM monitor_checks WHERE checked_at < ?",
+            before_str
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }

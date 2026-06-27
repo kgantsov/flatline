@@ -10,6 +10,7 @@ use server::db::sqlite_monitor_notification::SqliteMonitorNotificationRepository
 use server::db::sqlite_notification_channel::SqliteNotificationChannelRepository;
 use server::db::sqlite_user::SqliteUserRepository;
 use server::monitor::engine::{EngineHandle, MonitorEngine};
+use server::sweeper::run_sweeper;
 use server::{AppState, build_router};
 use shared::models::MonitorStats;
 use sqlx::SqlitePool;
@@ -96,6 +97,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut engine = MonitorEngine::new(state.clone(), engine_handle);
     engine.start().await?;
+
+    tokio::spawn(run_sweeper(state.clone()));
 
     let app = build_router(state);
 
