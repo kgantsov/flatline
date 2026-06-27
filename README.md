@@ -35,6 +35,9 @@ cd ../..
 cargo build --release -p server
 ```
 
+> Steps 1 and 2 are wrapped by `make build` (or `task build`), which builds the
+> frontend and then the server in the correct order.
+
 ### 3. Configure environment
 
 Create a `.env` file:
@@ -66,14 +69,18 @@ The server starts on port 3000. Visit `http://localhost:3000` to log in with you
 
 All configuration is via environment variables (or a `.env` file):
 
-| Variable              | Required | Default              | Description                              |
-|-----------------------|----------|----------------------|------------------------------------------|
-| `DATABASE_URL`        | No       | `sqlite:flatline.db` | SQLite connection string                 |
-| `OAUTH_ISSUER_URL`    | Yes      |                      | OIDC provider discovery URL              |
-| `OAUTH_CLIENT_ID`     | Yes      |                      | OIDC client ID                           |
-| `OAUTH_CLIENT_SECRET` | Yes      |                      | OIDC client secret                       |
-| `OAUTH_REDIRECT_URL`  | Yes      |                      | Callback URL (must match provider config)|
-| `JWT_SECRET`          | Yes      |                      | Secret for signing session cookies       |
+| Variable                        | Required | Default              | Description                                        |
+|---------------------------------|----------|----------------------|----------------------------------------------------|
+| `DATABASE_URL`                  | No       | `sqlite:flatline.db` | SQLite connection string                           |
+| `OAUTH_ISSUER_URL`              | Yes      |                      | OIDC provider discovery URL                        |
+| `OAUTH_CLIENT_ID`               | Yes      |                      | OIDC client ID                                     |
+| `OAUTH_CLIENT_SECRET`           | Yes      |                      | OIDC client secret                                 |
+| `OAUTH_REDIRECT_URL`            | Yes      |                      | Callback URL (must match provider config)          |
+| `JWT_SECRET`                    | Yes      |                      | Secret for signing session cookies                 |
+| `SWEEP_INTERVAL_SECONDS`        | No       | `60`                 | How often old monitor checks are swept             |
+| `MONITOR_CHECKS_RETENTION_DAYS` | No       | `90`                 | Monitor checks older than this are deleted          |
+
+The listen address defaults to `0.0.0.0:3000` and can be overridden with the `-a`/`--address` flag (e.g. `./target/release/server --address 127.0.0.1:8080`).
 
 ## Authentication
 
