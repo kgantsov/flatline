@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM monitor_checks WHERE checked_at < ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "dcf0152d13827d482677c5a97861a61559567bf4a806f053b9a155b336a7898a"
+}
