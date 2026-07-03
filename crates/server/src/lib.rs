@@ -5,6 +5,7 @@ pub mod db;
 pub mod error;
 pub mod monitor;
 pub mod notify;
+pub mod request_id;
 pub mod sweeper;
 
 use dashmap::DashMap;
@@ -232,4 +233,5 @@ pub fn build_router(state: AppState) -> Router {
         )
         .with_state(state)
         .fallback(static_handler)
+        .layer(middleware::from_fn(request_id::request_id))
 }

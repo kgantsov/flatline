@@ -19,7 +19,8 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use tracing::{Level, info};
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
 #[derive(Parser, Debug)]
@@ -43,9 +44,18 @@ struct Args {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
 
-    tracing_subscriber::fmt()
-        .with_max_level(Level::DEBUG)
-        .init();
+    // Log level is controlled at runtime via RUST_LOG (e.g. `RUST_LOG=debug`,
+    // or per-target `RUST_LOG=info,server=debug`). Defaults to `info`.
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
+    // Log output format is controlled at runtime via LOG_FORMAT:
+    // `json` for structured logs, anything else (default) for human-readable.
+    let builder = tracing_subscriber::fmt().with_env_filter(env_filter);
+    match std::env::var("LOG_FORMAT").as_deref() {
+        Ok("json") => builder.json().init(),
+        _ => builder.init(),
+    }
 
     let args = Args::parse();
 
