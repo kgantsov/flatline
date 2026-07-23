@@ -171,7 +171,6 @@ mod tests {
             event_tx: tokio::sync::broadcast::channel(1).0,
             stats: Arc::new(dashmap::DashMap::new()),
             oidc_client: fake_oidc_client(),
-            pending_auth: Arc::new(dashmap::DashMap::new()),
             http_client: reqwest::Client::new(),
             jwt_encoding_key: Arc::new(EncodingKey::from_secret(TEST_JWT_SECRET)),
             jwt_decoding_key: Arc::new(DecodingKey::from_secret(TEST_JWT_SECRET)),

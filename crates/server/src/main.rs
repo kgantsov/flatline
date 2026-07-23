@@ -99,7 +99,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         stats: Arc::new(DashMap::<Uuid, MonitorStats>::new()),
         event_tx,
         oidc_client,
-        pending_auth: Arc::new(DashMap::new()),
         http_client,
         jwt_encoding_key,
         jwt_decoding_key,

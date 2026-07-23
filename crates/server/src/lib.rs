@@ -10,9 +10,7 @@ pub mod sweeper;
 
 use dashmap::DashMap;
 use jsonwebtoken::{DecodingKey, EncodingKey};
-use openidconnect::Nonce;
 use std::sync::Arc;
-use std::time::Instant;
 use tokio::sync::broadcast;
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::{Modify, OpenApi};
@@ -88,7 +86,6 @@ pub struct AppState {
     pub stats: Arc<DashMap<Uuid, MonitorStats>>,
     pub event_tx: broadcast::Sender<SseEvent>,
     pub oidc_client: Arc<OidcClient>,
-    pub pending_auth: Arc<DashMap<String, (Nonce, Instant)>>,
     pub http_client: reqwest::Client,
     pub jwt_encoding_key: Arc<EncodingKey>,
     pub jwt_decoding_key: Arc<DecodingKey>,
