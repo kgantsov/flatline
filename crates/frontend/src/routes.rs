@@ -14,6 +14,21 @@ pub enum Route {
     #[at("/notifications")]
     Notifications,
 
+    #[at("/status-pages")]
+    StatusPages,
+
+    #[at("/status-pages/create")]
+    CreateStatusPage,
+
+    #[at("/status-pages/:id/edit")]
+    StatusPageEdit { id: String },
+
+    #[at("/status-pages/:id")]
+    StatusPageDetail { id: String },
+
+    #[at("/s/:slug")]
+    PublicStatus { slug: String },
+
     #[not_found]
     #[at("/404")]
     NotFound,

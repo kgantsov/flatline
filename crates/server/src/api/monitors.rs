@@ -186,3 +186,60 @@ pub struct IncidentsQuery {
 fn default_incidents_limit() -> i64 {
     25
 }
+
+/// Get the 90-day per-day downtime history for a monitor.
+///
+/// Returns a 90-element array where index 0 is 89 days ago and index 89 is today.
+/// Each value is the total downtime minutes for that UTC calendar day.
+#[utoipa::path(
+    get,
+    path = "/api/v1/monitors/{monitor_id}/incident-history",
+    responses(
+        (status = 200, description = "90-day downtime history (minutes per day)", body = [u32]),
+        (status = 404, description = "Monitor not found", body = ErrorBody),
+        (status = 500, description = "Internal server error", body = ErrorBody),
+    ),
+    tag = "monitors"
+)]
+pub async fn get_monitor_incident_history(
+    State(state): State<AppState>,
+    Path(monitor_id): Path<Uuid>,
+) -> Result<(StatusCode, Json<Vec<u32>>), ApiError> {
+    state.monitors.get(monitor_id).await?;
+    let now = Utc::now();
+    let incidents = state
+        .incidents
+        .list_for_monitor(monitor_id, 1000, None)
+        .await
+        .unwrap_or_default();
+
+    let history: Vec<u32> = (0..90_i64)
+        .rev()
+        .map(|days_ago| {
+            let day = (now - chrono::Duration::days(days_ago)).date_naive();
+            let day_start = day.and_hms_opt(0, 0, 0).unwrap().and_utc();
+            let day_end = day
+                .succ_opt()
+                .unwrap_or(day)
+                .and_hms_opt(0, 0, 0)
+                .unwrap()
+                .and_utc();
+            incidents
+                .iter()
+                .filter_map(|inc| {
+                    let inc_end = inc.resolved_at.unwrap_or(now);
+                    let overlap_start = inc.started_at.max(day_start);
+                    let overlap_end = inc_end.min(day_end);
+                    if overlap_end > overlap_start {
+                        let secs = (overlap_end - overlap_start).num_seconds().max(0) as u32;
+                        Some(secs / 60)
+                    } else {
+                        None
+                    }
+                })
+                .sum()
+        })
+        .collect();
+
+    Ok((StatusCode::OK, Json(history)))
+}

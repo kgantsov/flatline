@@ -6,6 +6,7 @@ pub enum NavActive {
     None,
     Monitors,
     Notifications,
+    StatusPages,
 }
 
 #[derive(Properties, PartialEq)]
@@ -21,6 +22,7 @@ pub struct LayoutProps {
 pub fn layout(props: &LayoutProps) -> Html {
     let monitors_cls = if props.active == NavActive::Monitors { "active" } else { "" };
     let notifications_cls = if props.active == NavActive::Notifications { "active" } else { "" };
+    let status_pages_cls = if props.active == NavActive::StatusPages { "active" } else { "" };
 
     html! {
         <div class="app">
@@ -38,6 +40,7 @@ pub fn layout(props: &LayoutProps) -> Html {
                 <nav>
                     <a href="/" class={monitors_cls}>{ "Monitors" }</a>
                     <a href="/notifications" class={notifications_cls}>{ "Notifications" }</a>
+                    <a href="/status-pages" class={status_pages_cls}>{ "Status Pages" }</a>
                 </nav>
                 <div class="header-right">
                     { if let Some(actions) = props.header_actions.clone() {

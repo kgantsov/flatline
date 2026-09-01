@@ -32,18 +32,21 @@ use crate::{
     config::Config,
     db::{
         CheckRepository, IncidentRepository, MonitorNotificationRepository, MonitorRepository,
-        NotificationChannelRepository, UserRepository,
+        NotificationChannelRepository, StatusPageMonitorRepository, StatusPageRepository,
+        UserRepository,
     },
 };
 use rust_embed::RustEmbed;
 use shared::models::{
     HttpBody, HttpMethod, Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig,
-    MonitorNotification, NotificationChannel, NotificationChannelConfig, SseEvent,
+    MonitorNotification, NotificationChannel, NotificationChannelConfig, PublicStatusPage,
+    SseEvent, StatusPage, StatusPageMonitor,
 };
 use shared::{
     api::{
-        CreateMonitorNotificationRequest, CreateMonitorRequest, CreateNotificationChannelRequest,
-        UpdateMonitorRequest, UpdateNotificationChannelRequest,
+        AddStatusPageMonitorRequest, CreateMonitorNotificationRequest, CreateMonitorRequest,
+        CreateNotificationChannelRequest, CreateStatusPageRequest, UpdateMonitorRequest,
+        UpdateNotificationChannelRequest, UpdateStatusPageRequest,
     },
     models::MonitorStats,
 };
@@ -77,6 +80,8 @@ async fn static_handler(uri: Uri) -> impl IntoResponse {
 pub struct AppState {
     pub config: Config,
     pub monitors: Arc<dyn MonitorRepository>,
+    pub status_pages: Arc<dyn StatusPageRepository>,
+    pub status_page_monitors: Arc<dyn StatusPageMonitorRepository>,
     pub checks: Arc<dyn CheckRepository>,
     pub incidents: Arc<dyn IncidentRepository>,
     pub notification_channels: Arc<dyn NotificationChannelRepository>,
@@ -114,6 +119,7 @@ impl Modify for SecurityAddon {
         crate::api::monitors::update_monitor,
         crate::api::monitors::get_monitor_checks,
         crate::api::monitors::get_monitor_incidents,
+        crate::api::monitors::get_monitor_incident_history,
         crate::api::monitor_notifications::create_monitor_notification,
         crate::api::monitor_notifications::list_monitor_notifications,
         crate::api::monitor_notifications::delete_monitor_notification,
@@ -123,6 +129,15 @@ impl Modify for SecurityAddon {
         crate::api::notification_channels::update_notification_channel,
         crate::api::notification_channels::delete_notification_channel,
         crate::api::stats::stats_stream,
+        crate::api::status_pages::create_status_page,
+        crate::api::status_pages::list_status_pages,
+        crate::api::status_pages::get_status_page,
+        crate::api::status_pages::update_status_page,
+        crate::api::status_pages::delete_status_page,
+        crate::api::status_pages::add_monitor_to_page,
+        crate::api::status_pages::list_page_monitors,
+        crate::api::status_pages::remove_monitor_from_page,
+        crate::api::status_pages::get_public_status_page,
     ),
     components(
         schemas(
@@ -141,13 +156,20 @@ impl Modify for SecurityAddon {
             NotificationChannelConfig,
             CreateMonitorNotificationRequest,
             MonitorNotification,
-            ErrorBody
+            ErrorBody,
+            CreateStatusPageRequest,
+            UpdateStatusPageRequest,
+            AddStatusPageMonitorRequest,
+            StatusPage,
+            StatusPageMonitor,
+            PublicStatusPage,
         )
     ),
     tags(
         (name = "monitors", description = "Monitor management"),
         (name = "notification-channels", description = "Notification channel management"),
         (name = "stats", description = "Real-time monitor statistics"),
+        (name = "status-pages", description = "Status page management"),
     ),
     modifiers(&SecurityAddon),
     security(("bearerAuth" = [])),
@@ -179,6 +201,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/v1/monitors/:monitor_id/incidents",
             get(api::monitors::get_monitor_incidents),
+        )
+        .route(
+            "/api/v1/monitors/:monitor_id/incident-history",
+            get(api::monitors::get_monitor_incident_history),
         )
         .route(
             "/api/v1/monitors/:monitor_id/notifications",
@@ -213,6 +239,38 @@ pub fn build_router(state: AppState) -> Router {
             delete(api::notification_channels::delete_notification_channel),
         )
         .route("/api/v1/stats/stream", get(api::stats::stats_stream))
+        .route(
+            "/api/v1/status-pages",
+            post(api::status_pages::create_status_page),
+        )
+        .route(
+            "/api/v1/status-pages",
+            get(api::status_pages::list_status_pages),
+        )
+        .route(
+            "/api/v1/status-pages/:page_id",
+            get(api::status_pages::get_status_page),
+        )
+        .route(
+            "/api/v1/status-pages/:page_id",
+            patch(api::status_pages::update_status_page),
+        )
+        .route(
+            "/api/v1/status-pages/:page_id",
+            delete(api::status_pages::delete_status_page),
+        )
+        .route(
+            "/api/v1/status-pages/:page_id/monitors",
+            post(api::status_pages::add_monitor_to_page),
+        )
+        .route(
+            "/api/v1/status-pages/:page_id/monitors",
+            get(api::status_pages::list_page_monitors),
+        )
+        .route(
+            "/api/v1/status-pages/:page_id/monitors/:monitor_id",
+            delete(api::status_pages::remove_monitor_from_page),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::middleware::require_auth,
@@ -222,6 +280,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/auth/login", get(auth::handlers::login))
         .route("/auth/callback", get(auth::handlers::callback))
         .route("/auth/logout", post(auth::handlers::logout))
+        .route("/status/:slug", get(api::status_pages::get_public_status_page))
         .merge(protected)
         .merge(
             SwaggerUi::new("/docs")

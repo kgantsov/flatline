@@ -1,7 +1,7 @@
 pub use shared::models::{
     HttpBody, Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig,
-    MonitorNotification, MonitorStats, NotificationChannel, NotificationChannelConfig, SseEvent,
-    User,
+    MonitorNotification, MonitorStats, NotificationChannel, NotificationChannelConfig,
+    PublicStatusPage, SseEvent, StatusPage, StatusPageMonitor, User,
 };
 
 use serde::Serialize;
@@ -62,6 +62,17 @@ pub async fn fetch_incidents(id: &str) -> Vec<Incident> {
         return vec![];
     }
     resp.json::<Vec<Incident>>().await.unwrap_or_default()
+}
+
+pub async fn fetch_incident_history(id: &str) -> Vec<u32> {
+    let url = format!("/api/v1/monitors/{id}/incident-history");
+    let Ok(resp) = gloo_net::http::Request::get(&url).send().await else {
+        return vec![];
+    };
+    if !resp.ok() {
+        return vec![];
+    }
+    resp.json::<Vec<u32>>().await.unwrap_or_default()
 }
 
 pub async fn fetch_monitor_notifications(id: &str) -> Vec<MonitorNotification> {
@@ -312,4 +323,140 @@ pub async fn delete_channel(id: &str) -> Result<(), String> {
         return Err(format!("HTTP {}", resp.status()));
     }
     Ok(())
+}
+
+// ── Status Pages ──────────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+pub struct StatusPageFormData {
+    pub name: String,
+    pub description: String, // empty string = clear the description on the server
+    pub slug: String,
+    pub refresh_interval: u32,
+}
+
+#[derive(serde::Serialize)]
+struct AddMonitorBody {
+    monitor_id: String,
+}
+
+pub async fn fetch_status_pages() -> Result<Vec<StatusPage>, String> {
+    let resp = gloo_net::http::Request::get("/api/v1/status-pages")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<Vec<StatusPage>>().await.map_err(|e| e.to_string())
+}
+
+pub async fn fetch_status_page(id: &str) -> Result<StatusPage, String> {
+    let resp = gloo_net::http::Request::get(&format!("/api/v1/status-pages/{id}"))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<StatusPage>().await.map_err(|e| e.to_string())
+}
+
+pub async fn create_status_page(data: &StatusPageFormData) -> Result<StatusPage, String> {
+    let resp = gloo_net::http::Request::post("/api/v1/status-pages")
+        .json(data)
+        .map_err(|e| e.to_string())?
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        let msg = resp
+            .json::<serde_json::Value>()
+            .await
+            .ok()
+            .and_then(|v| v["error"].as_str().map(str::to_string))
+            .unwrap_or_else(|| format!("HTTP {}", resp.status()));
+        return Err(msg);
+    }
+    resp.json::<StatusPage>().await.map_err(|e| e.to_string())
+}
+
+pub async fn update_status_page(id: &str, data: &StatusPageFormData) -> Result<StatusPage, String> {
+    let resp = gloo_net::http::Request::patch(&format!("/api/v1/status-pages/{id}"))
+        .json(data)
+        .map_err(|e| e.to_string())?
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        let msg = resp
+            .json::<serde_json::Value>()
+            .await
+            .ok()
+            .and_then(|v| v["error"].as_str().map(str::to_string))
+            .unwrap_or_else(|| format!("HTTP {}", resp.status()));
+        return Err(msg);
+    }
+    resp.json::<StatusPage>().await.map_err(|e| e.to_string())
+}
+
+pub async fn delete_status_page(id: &str) -> Result<(), String> {
+    let resp = gloo_net::http::Request::delete(&format!("/api/v1/status-pages/{id}"))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    Ok(())
+}
+
+pub async fn fetch_page_monitors(page_id: &str) -> Vec<StatusPageMonitor> {
+    let Ok(resp) = gloo_net::http::Request::get(&format!("/api/v1/status-pages/{page_id}/monitors"))
+        .send()
+        .await
+    else {
+        return vec![];
+    };
+    if !resp.ok() {
+        return vec![];
+    }
+    resp.json::<Vec<StatusPageMonitor>>().await.unwrap_or_default()
+}
+
+pub async fn add_monitor_to_page(page_id: &str, monitor_id: &str) -> Result<(), String> {
+    let resp = gloo_net::http::Request::post(&format!("/api/v1/status-pages/{page_id}/monitors"))
+        .json(&AddMonitorBody { monitor_id: monitor_id.to_string() })
+        .map_err(|e| e.to_string())?
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    Ok(())
+}
+
+pub async fn remove_monitor_from_page(page_id: &str, monitor_id: &str) -> Result<(), String> {
+    let resp = gloo_net::http::Request::delete(&format!(
+        "/api/v1/status-pages/{page_id}/monitors/{monitor_id}"
+    ))
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    Ok(())
+}
+
+pub async fn fetch_public_status_page(slug: &str) -> Result<PublicStatusPage, String> {
+    let resp = gloo_net::http::Request::get(&format!("/status/{slug}"))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<PublicStatusPage>().await.map_err(|e| e.to_string())
 }

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::models::{MonitorCheckStatus, MonitorConfig, NotificationChannelConfig};
 
@@ -7,7 +8,10 @@ use crate::models::{MonitorCheckStatus, MonitorConfig, NotificationChannelConfig
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct CreateMonitorCheckRequest {
     /// ID of the monitor this check belongs to.
-    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    #[cfg_attr(
+        feature = "utoipa",
+        schema(example = "550e8400-e29b-41d4-a716-446655440000")
+    )]
     pub monitor_id: uuid::Uuid,
     /// Whether the monitor was up or down.
     pub status: MonitorCheckStatus,
@@ -72,11 +76,44 @@ pub struct UpdateNotificationChannelRequest {
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct CreateMonitorNotificationRequest {
     /// ID of the notification channel to link.
-    #[cfg_attr(feature = "utoipa", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
+    #[cfg_attr(
+        feature = "utoipa",
+        schema(example = "550e8400-e29b-41d4-a716-446655440000")
+    )]
     pub channel_id: uuid::Uuid,
     /// Whether to also notify when the monitor recovers. Defaults to `true`.
     #[cfg_attr(feature = "utoipa", schema(example = true))]
     pub on_recovery: Option<bool>,
+}
+
+/// Request body for creating a new status page.
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct CreateStatusPageRequest {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// URL-safe slug for the public URL (`/s/<slug>`).
+    pub slug: String,
+    /// Auto-refresh interval in seconds. Defaults to 60.
+    pub refresh_interval: Option<u32>,
+}
+
+/// Request body for updating a status page. All fields are optional.
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct UpdateStatusPageRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub slug: Option<String>,
+    pub refresh_interval: Option<u32>,
+}
+
+/// Request body for adding a monitor to a status page.
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct AddStatusPageMonitorRequest {
+    pub monitor_id: Uuid,
 }
 
 /// Request body for creating a new monitor.
@@ -101,3 +138,4 @@ pub struct CreateMonitorRequest {
     #[cfg_attr(feature = "utoipa", schema(example = true))]
     pub enabled: Option<bool>,
 }
+

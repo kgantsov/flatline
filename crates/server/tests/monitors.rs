@@ -14,17 +14,19 @@ mod tests {
     use server::config::Config;
     use server::db::{
         CheckRepository, IncidentRepository, MonitorNotificationRepository, MonitorRepository,
-        NotificationChannelRepository, UserRepository,
+        NotificationChannelRepository, StatusPageMonitorRepository, StatusPageRepository,
+        UserRepository,
     };
     use server::error::ApiError;
     use server::{AppState, build_router};
     use shared::api::{
-        CreateMonitorCheckRequest, CreateMonitorNotificationRequest, CreateMonitorRequest,
-        CreateNotificationChannelRequest, UpdateMonitorRequest, UpdateNotificationChannelRequest,
+        AddStatusPageMonitorRequest, CreateMonitorCheckRequest, CreateMonitorNotificationRequest,
+        CreateMonitorRequest, CreateNotificationChannelRequest, CreateStatusPageRequest,
+        UpdateMonitorRequest, UpdateNotificationChannelRequest, UpdateStatusPageRequest,
     };
     use shared::models::{
         Incident, LatencyPercentiles, Monitor, MonitorCheck, MonitorNotification,
-        NotificationChannel, User,
+        NotificationChannel, StatusPage, StatusPageMonitor, User,
     };
     use std::sync::Arc;
     use tower::ServiceExt; // for `oneshot`
@@ -106,6 +108,31 @@ mod tests {
         }
     }
 
+    mock! {
+        pub StatusPageRepo {}
+
+        #[async_trait::async_trait]
+        impl StatusPageRepository for StatusPageRepo {
+            async fn create(&self, req: CreateStatusPageRequest) -> Result<StatusPage, ApiError>;
+            async fn list(&self) -> Result<Vec<StatusPage>, ApiError>;
+            async fn get(&self, id: Uuid) -> Result<StatusPage, ApiError>;
+            async fn get_by_slug(&self, slug: &str) -> Result<StatusPage, ApiError>;
+            async fn update(&self, id: Uuid, req: UpdateStatusPageRequest) -> Result<StatusPage, ApiError>;
+            async fn delete(&self, id: Uuid) -> Result<(), ApiError>;
+        }
+    }
+
+    mock! {
+        pub StatusPageMonitorRepo {}
+
+        #[async_trait::async_trait]
+        impl StatusPageMonitorRepository for StatusPageMonitorRepo {
+            async fn add(&self, status_page_id: Uuid, req: AddStatusPageMonitorRequest) -> Result<StatusPageMonitor, ApiError>;
+            async fn list_for_page(&self, status_page_id: Uuid) -> Result<Vec<StatusPageMonitor>, ApiError>;
+            async fn remove(&self, status_page_id: Uuid, monitor_id: Uuid) -> Result<(), ApiError>;
+        }
+    }
+
     const TEST_JWT_SECRET: &[u8] = b"jwt_secret";
 
     fn fake_oidc_client() -> Arc<OidcClient> {
@@ -162,6 +189,8 @@ mod tests {
                 monitor_checks_retention_days: 180,
             },
             monitors: Arc::new(monitors_mock),
+            status_pages: Arc::new(MockStatusPageRepo::new()),
+            status_page_monitors: Arc::new(MockStatusPageMonitorRepo::new()),
             checks: Arc::new(checks_mock),
             incidents: Arc::new(incidents_mock),
             notification_channels: Arc::new(MockNotificationChannelRepo::new()),

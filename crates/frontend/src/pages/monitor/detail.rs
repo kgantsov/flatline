@@ -2,7 +2,7 @@ use super::{PageData, Tab, charts};
 use crate::api::{
     Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig, MonitorStats,
 };
-use crate::components::NotifLinker;
+use crate::components::{IncidentSparkline, NotifLinker};
 use crate::utils::{fmt_date, fmt_ms, monitor_url};
 use yew::prelude::*;
 
@@ -90,6 +90,8 @@ pub(super) struct MonitorDetailProps {
     pub live_status: Option<MonitorCheckStatus>,
     /// Live computed stats from SSE (7d/30d/90d uptime + latency percentiles).
     pub live_stats: Option<MonitorStats>,
+    /// 90-day per-day downtime history from the incident-history endpoint.
+    pub incident_history: Vec<u32>,
 }
 
 #[function_component(MonitorDetail)]
@@ -100,6 +102,7 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
         incidents,
         notifications,
         channels,
+        ..
     } = &props.data;
 
     let latest = checks.first().map(|c| &c.status);
@@ -281,6 +284,8 @@ pub(super) fn monitor_detail(props: &MonitorDetailProps) -> Html {
                     </div>
                 }
             } else { html! {} }}
+
+            <IncidentSparkline day_downtime={props.incident_history.clone()} />
 
             <div class="card chart-card">
                 <div class="card-header">

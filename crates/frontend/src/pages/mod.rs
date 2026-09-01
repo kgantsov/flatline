@@ -1,5 +1,9 @@
 pub mod create;
+pub mod create_status_page;
 pub mod login;
 pub mod monitor;
 pub mod monitors;
 pub mod notifications;
+pub mod public_status;
+pub mod status_page_detail;
+pub mod status_pages;

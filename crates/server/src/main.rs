@@ -8,6 +8,8 @@ use server::db::sqlite_incident::SqliteIncidentRepository;
 use server::db::sqlite_monitor::SqliteMonitorRepository;
 use server::db::sqlite_monitor_notification::SqliteMonitorNotificationRepository;
 use server::db::sqlite_notification_channel::SqliteNotificationChannelRepository;
+use server::db::sqlite_status_page_monitor::SqliteStatusPageMonitorRepository;
+use server::db::sqlite_status_pages::SqliteStatusPageRepository;
 use server::db::sqlite_user::SqliteUserRepository;
 use server::monitor::engine::{EngineHandle, MonitorEngine};
 use server::sweeper::run_sweeper;
@@ -90,6 +92,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState {
         config,
         monitors: Arc::new(SqliteMonitorRepository { pool: pool.clone() }),
+        status_pages: Arc::new(SqliteStatusPageRepository { pool: pool.clone() }),
+        status_page_monitors: Arc::new(SqliteStatusPageMonitorRepository { pool: pool.clone() }),
         checks: Arc::new(SqliteCheckRepository { pool: pool.clone() }),
         incidents: Arc::new(SqliteIncidentRepository { pool: pool.clone() }),
         notification_channels: Arc::new(SqliteNotificationChannelRepository { pool: pool.clone() }),

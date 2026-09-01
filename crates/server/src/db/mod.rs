@@ -3,18 +3,21 @@ pub mod sqlite_incident;
 pub mod sqlite_monitor;
 pub mod sqlite_monitor_notification;
 pub mod sqlite_notification_channel;
+pub mod sqlite_status_page_monitor;
+pub mod sqlite_status_pages;
 pub mod sqlite_user;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use mockall::automock;
 use shared::api::{
-    CreateMonitorCheckRequest, CreateMonitorNotificationRequest, CreateMonitorRequest,
-    CreateNotificationChannelRequest, UpdateMonitorRequest, UpdateNotificationChannelRequest,
+    AddStatusPageMonitorRequest, CreateMonitorCheckRequest, CreateMonitorNotificationRequest,
+    CreateMonitorRequest, CreateNotificationChannelRequest, CreateStatusPageRequest,
+    UpdateMonitorRequest, UpdateNotificationChannelRequest, UpdateStatusPageRequest,
 };
 use shared::models::{
     Incident, LatencyPercentiles, Monitor, MonitorCheck, MonitorNotification, NotificationChannel,
-    User,
+    StatusPage, StatusPageMonitor, User,
 };
 use uuid::Uuid;
 
@@ -115,4 +118,28 @@ pub trait IncidentRepository: Send + Sync {
         monitor_id: Uuid,
         window_start: DateTime<Utc>,
     ) -> Result<Option<LatencyPercentiles>, ApiError>;
+}
+
+#[automock]
+#[async_trait]
+pub trait StatusPageRepository: Send + Sync {
+    async fn create(&self, req: CreateStatusPageRequest) -> Result<StatusPage, ApiError>;
+    async fn list(&self) -> Result<Vec<StatusPage>, ApiError>;
+    async fn get(&self, id: Uuid) -> Result<StatusPage, ApiError>;
+    async fn get_by_slug(&self, slug: &str) -> Result<StatusPage, ApiError>;
+    async fn update(&self, id: Uuid, req: UpdateStatusPageRequest) -> Result<StatusPage, ApiError>;
+    async fn delete(&self, id: Uuid) -> Result<(), ApiError>;
+}
+
+#[automock]
+#[async_trait]
+pub trait StatusPageMonitorRepository: Send + Sync {
+    async fn add(
+        &self,
+        status_page_id: Uuid,
+        req: AddStatusPageMonitorRequest,
+    ) -> Result<StatusPageMonitor, ApiError>;
+    async fn list_for_page(&self, status_page_id: Uuid)
+    -> Result<Vec<StatusPageMonitor>, ApiError>;
+    async fn remove(&self, status_page_id: Uuid, monitor_id: Uuid) -> Result<(), ApiError>;
 }

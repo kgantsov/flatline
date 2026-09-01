@@ -13,3 +13,8 @@ no_redirect = true
 rewrite = "/auth/"
 backend = "http://localhost:3000/auth/"
 no_redirect = true
+
+[[proxy]]
+rewrite = "/status/"
+backend = "http://localhost:3000/status/"
+no_redirect = true

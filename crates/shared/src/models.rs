@@ -303,6 +303,65 @@ pub struct MonitorStats {
     pub p99_90d: u64,
 }
 
+/// A public-facing status page.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct StatusPage {
+    pub id: uuid::Uuid,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// URL-safe slug used in the public URL (`/s/<slug>`).
+    pub slug: String,
+    /// How often the public page should auto-refresh, in seconds.
+    pub refresh_interval: u32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// A link between a status page and a monitor.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct StatusPageMonitor {
+    pub status_page_id: uuid::Uuid,
+    pub monitor_id: uuid::Uuid,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Response returned by the public status page endpoint.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct PublicStatusPage {
+    pub page: StatusPage,
+    pub monitors: Vec<PublicMonitorStatus>,
+}
+
+/// The public-safe subset of a monitor (no config, no operational details).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct PublicMonitor {
+    pub id: uuid::Uuid,
+    pub name: String,
+}
+
+/// A monitor entry on a public status page, with its latest stats.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct PublicMonitorStatus {
+    pub monitor: PublicMonitor,
+    /// Whether the monitor has no open incident right now.
+    #[serde(default = "default_true")]
+    pub is_up: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats: Option<MonitorStats>,
+    /// 90-day downtime history: index 0 = 89 days ago, index 89 = today.
+    /// Each value is total downtime minutes for that day (0 = fully operational).
+    #[serde(default)]
+    pub day_downtime_minutes: Vec<u32>,
+}
+
+fn default_true() -> bool { true }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SseEvent {

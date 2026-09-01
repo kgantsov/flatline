@@ -19,6 +19,8 @@ pub(super) struct PageData {
     pub incidents: Vec<Incident>,
     pub notifications: Vec<MonitorNotification>,
     pub channels: Vec<NotificationChannel>,
+    /// 90-element server-computed downtime-minutes-per-day, newest last.
+    pub incident_history: Vec<u32>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -50,11 +52,15 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
     let navigator = use_navigator().unwrap();
     let sse = use_sse_stats();
 
+    let incident_history = use_state(Vec::<u32>::new);
+
     let load = {
         let page_state = page_state.clone();
+        let incident_history = incident_history.clone();
         let id = props.id.clone();
         move || {
             let page_state = page_state.clone();
+            let incident_history = incident_history.clone();
             let id = id.clone();
             spawn_local(async move {
                 let monitor = match api::fetch_monitor(&id).await {
@@ -68,12 +74,15 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
                 let incidents = api::fetch_incidents(&id).await;
                 let notifications = api::fetch_monitor_notifications(&id).await;
                 let channels = api::fetch_all_channels().await;
+                let history = api::fetch_incident_history(&id).await;
+                incident_history.set(history.clone());
                 page_state.set(PageState::Loaded(Box::new(PageData {
                     monitor,
                     checks,
                     incidents,
                     notifications,
                     channels,
+                    incident_history: history,
                 })));
             });
         }
@@ -84,6 +93,25 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
         let id = props.id.clone();
         use_effect_with(id, move |_| {
             load();
+        });
+    }
+
+    // Re-fetch the 90-day history whenever SSE delivers an incident event for this monitor.
+    // live_incidents changes on IncidentOpened (new entry) and IncidentResolved (resolved_at set).
+    {
+        let history = incident_history.clone();
+        let id = props.id.clone();
+        let live_inc = (*sse).live_incidents.get(&props.id).cloned().unwrap_or_default();
+        use_effect_with((id.clone(), live_inc), move |(id, _)| {
+            // Skip the initial render when history hasn't been fetched yet.
+            let history = history.clone();
+            let id = id.clone();
+            spawn_local(async move {
+                let data = api::fetch_incident_history(&id).await;
+                if !data.is_empty() {
+                    history.set(data);
+                }
+            });
         });
     }
 
@@ -263,6 +291,7 @@ pub fn monitor_page(props: &MonitorPageProps) -> Html {
                                 on_reload={on_reload.clone()}
                                 live_status={live_status}
                                 live_stats={live_stats}
+                                incident_history={(*incident_history).clone()}
                             />
                         }
                     },
