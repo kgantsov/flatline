@@ -40,7 +40,12 @@ pub fn status_page_detail(props: &Props) -> Html {
                     Err(e) => { state.set(LoadState::Error(e)); return; }
                 };
                 let monitors_on_page = api::fetch_page_monitors(&id).await;
-                let all_monitors = api::fetch_monitors().await.unwrap_or_default();
+                let all_monitors = api::fetch_monitors()
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|s| s.monitor)
+                    .collect();
                 state.set(LoadState::Loaded(PageData { page, monitors_on_page, all_monitors }));
             });
         })

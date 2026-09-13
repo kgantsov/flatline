@@ -233,6 +233,18 @@ pub struct MonitorNotification {
     pub created_at: DateTime<Utc>,
 }
 
+/// A monitor with its most recent checks and open incident, returned by the list endpoint.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct MonitorSummary {
+    #[serde(flatten)]
+    pub monitor: Monitor,
+    /// The 30 most recent check results, newest first.
+    pub recent_checks: Vec<MonitorCheck>,
+    /// The currently open incident, if any.
+    pub open_incident: Option<Incident>,
+}
+
 /// A configured uptime monitor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]

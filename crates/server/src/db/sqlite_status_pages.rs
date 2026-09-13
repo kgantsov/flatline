@@ -135,7 +135,11 @@ impl StatusPageRepository for SqliteStatusPageRepository {
         })
     }
 
-    async fn update(&self, id: Uuid, input: UpdateStatusPageRequest) -> Result<StatusPage, ApiError> {
+    async fn update(
+        &self,
+        id: Uuid,
+        input: UpdateStatusPageRequest,
+    ) -> Result<StatusPage, ApiError> {
         let existing = self.get(id).await?;
         let now = Utc::now();
         let id_str = id.to_string();
@@ -145,7 +149,7 @@ impl StatusPageRepository for SqliteStatusPageRepository {
         let description = match input.description {
             Some(d) if d.is_empty() => None, // empty string = clear the description
             Some(d) => Some(d),
-            None => existing.description,     // field absent = keep existing
+            None => existing.description, // field absent = keep existing
         };
         let slug = input.slug.unwrap_or(existing.slug);
         let refresh_interval = input.refresh_interval.unwrap_or(existing.refresh_interval);

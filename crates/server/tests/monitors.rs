@@ -332,7 +332,19 @@ mod tests {
             .once()
             .returning(move || Ok(monitors.clone()));
 
-        let response = test_app(mock, MockCheckRepo::new(), MockIncidentRepo::new())
+        let mut checks_mock = MockCheckRepo::new();
+        checks_mock
+            .expect_list_for_monitor()
+            .times(2)
+            .returning(|_, _, _| Ok(vec![]));
+
+        let mut incidents_mock = MockIncidentRepo::new();
+        incidents_mock
+            .expect_get_open_for_monitor()
+            .times(2)
+            .returning(|_| Ok(None));
+
+        let response = test_app(mock, checks_mock, incidents_mock)
             .oneshot(
                 Request::builder()
                     .method("GET")

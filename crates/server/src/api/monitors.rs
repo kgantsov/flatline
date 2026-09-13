@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
 use shared::api::{CreateMonitorRequest, UpdateMonitorRequest};
-use shared::models::{Incident, Monitor, MonitorCheck};
+use shared::models::{Incident, Monitor, MonitorCheck, MonitorSummary};
 use uuid::Uuid;
 
 use crate::AppState;
@@ -34,21 +34,27 @@ pub async fn create_monitor(
     Ok((StatusCode::CREATED, Json(monitor)))
 }
 
-/// Get a list of monitors
+/// Get a list of monitors with their recent checks and open incident.
 #[utoipa::path(
     get,
     path = "/api/v1/monitors",
     responses(
-        (status = 200, description = "List of monitors retrieved successfully", body = [Monitor]),
+        (status = 200, description = "List of monitors retrieved successfully", body = [MonitorSummary]),
         (status = 500, description = "Internal server error", body = ErrorBody),
     ),
     tag = "monitors"
 )]
 pub async fn get_monitors(
     State(state): State<AppState>,
-) -> Result<(StatusCode, Json<Vec<Monitor>>), ApiError> {
+) -> Result<(StatusCode, Json<Vec<MonitorSummary>>), ApiError> {
     let monitors = state.monitors.list().await?;
-    Ok((StatusCode::OK, Json(monitors)))
+    let mut summaries = Vec::with_capacity(monitors.len());
+    for monitor in monitors {
+        let recent_checks = state.checks.list_for_monitor(monitor.id, 30, None).await?;
+        let open_incident = state.incidents.get_open_for_monitor(monitor.id).await?;
+        summaries.push(MonitorSummary { monitor, recent_checks, open_incident });
+    }
+    Ok((StatusCode::OK, Json(summaries)))
 }
 
 /// Get a monitor by ID.

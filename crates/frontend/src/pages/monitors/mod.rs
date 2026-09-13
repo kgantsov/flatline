@@ -42,8 +42,8 @@ pub fn monitors_page() -> Html {
                 state.set(LoadState::Loading);
                 last_updated.set("Refreshing…".into());
 
-                let monitors = match api::fetch_monitors().await {
-                    Ok(m) => m,
+                let summaries = match api::fetch_monitors().await {
+                    Ok(s) => s,
                     Err(e) => {
                         state.set(LoadState::Error(format!("Failed to load monitors: {e}")));
                         last_updated.set("Error loading data".into());
@@ -51,24 +51,14 @@ pub fn monitors_page() -> Html {
                     }
                 };
 
-                let (checks_all, incidents_all) = {
-                    let ids: Vec<String> = monitors.iter().map(|m| m.id.to_string()).collect();
-                    let mut checks_futs = Vec::new();
-                    let mut incidents_futs = Vec::new();
-                    for id in &ids {
-                        checks_futs.push(api::fetch_checks(id, 30));
-                        incidents_futs.push(api::fetch_incidents(id));
-                    }
-                    let mut checks_all = Vec::new();
-                    for f in checks_futs {
-                        checks_all.push(f.await);
-                    }
-                    let mut incidents_all = Vec::new();
-                    for f in incidents_futs {
-                        incidents_all.push(f.await);
-                    }
-                    (checks_all, incidents_all)
-                };
+                let mut monitors: Vec<Monitor> = Vec::with_capacity(summaries.len());
+                let mut checks_all: Vec<Vec<MonitorCheck>> = Vec::with_capacity(summaries.len());
+                let mut incidents_all: Vec<Vec<Incident>> = Vec::with_capacity(summaries.len());
+                for s in summaries {
+                    checks_all.push(s.recent_checks);
+                    incidents_all.push(s.open_incident.into_iter().collect());
+                    monitors.push(s.monitor);
+                }
 
                 let count = monitors.len();
                 state.set(LoadState::Loaded(DashboardData {

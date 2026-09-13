@@ -1,7 +1,7 @@
 pub use shared::models::{
     HttpBody, Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig,
-    MonitorNotification, MonitorStats, NotificationChannel, NotificationChannelConfig,
-    PublicStatusPage, SseEvent, StatusPage, StatusPageMonitor, User,
+    MonitorNotification, MonitorStats, MonitorSummary, NotificationChannel,
+    NotificationChannelConfig, PublicStatusPage, SseEvent, StatusPage, StatusPageMonitor, User,
 };
 
 use serde::Serialize;
@@ -20,7 +20,7 @@ pub async fn fetch_me() -> Result<User, ()> {
     }
 }
 
-pub async fn fetch_monitors() -> Result<Vec<Monitor>, String> {
+pub async fn fetch_monitors() -> Result<Vec<MonitorSummary>, String> {
     let resp = gloo_net::http::Request::get("/api/v1/monitors")
         .send()
         .await
@@ -28,7 +28,9 @@ pub async fn fetch_monitors() -> Result<Vec<Monitor>, String> {
     if !resp.ok() {
         return Err(format!("HTTP {}", resp.status()));
     }
-    resp.json::<Vec<Monitor>>().await.map_err(|e| e.to_string())
+    resp.json::<Vec<MonitorSummary>>()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 pub async fn fetch_monitor(id: &str) -> Result<Monitor, String> {
