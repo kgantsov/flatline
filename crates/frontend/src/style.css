@@ -63,26 +63,16 @@ header {
 .logo {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-weight: 700;
-    font-size: 17px;
-    letter-spacing: -0.3px;
 }
 
-.logo-icon {
-    width: 28px;
-    height: 28px;
-    background: linear-gradient(135deg, var(--accent), #818cf8);
-    border-radius: 7px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.logo-lockup {
+    height: 30px;
+    width: auto;
+    color: var(--text);
 }
 
-.logo-icon svg {
-    width: 16px;
-    height: 16px;
-    fill: #fff;
+.logo-lockup-lg {
+    height: 36px;
 }
 
 nav {
