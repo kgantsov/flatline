@@ -2,11 +2,12 @@
 
 A self-hosted uptime monitor. Single binary, no external dependencies.
 
-Flatline monitors your HTTP endpoints, tracks incidents, sends notifications when things go down, and serves a web UI — all from one Rust binary with an embedded SQLite database.
+Flatline monitors your HTTP endpoints and TCP ports, tracks incidents, sends notifications when things go down, and serves a web UI — all from one Rust binary with an embedded SQLite database.
 
 ## Features
 
 - **HTTP monitoring** — configurable intervals, timeouts, retries, expected status codes, and HTTP methods
+- **TCP monitoring** — checks that a host/port accepts a connection, for anything that isn't HTTP (databases, SMTP, custom services)
 - **Incident tracking** — automatically opens an incident when a monitor goes down, resolves it on recovery
 - **Uptime and latency stats** — uptime percentage and P99 latency over 7, 30, and 90-day windows
 - **Notifications** — Slack, Discord, Telegram, and arbitrary HTTP webhooks, configurable per monitor
