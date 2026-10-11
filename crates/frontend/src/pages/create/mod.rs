@@ -1,10 +1,10 @@
 mod form;
 
-use crate::api::{self, MonitorConfigInput, MonitorFormData, MonitorNotification, NotificationChannel};
+use crate::api::{self, MonitorConfig, MonitorConfigInput, MonitorFormData, MonitorNotification, NotificationChannel};
 use crate::layout::Layout;
 use crate::routes::Route;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::{HtmlInputElement, HtmlTextAreaElement, InputEvent, KeyboardEvent};
+use web_sys::{HtmlInputElement, InputEvent};
 use yew::prelude::*;
 use yew_router::prelude::*;
 
@@ -43,19 +43,14 @@ pub fn create_page() -> Html {
     let is_edit = edit_id.is_some();
     let navigator = use_navigator().unwrap();
 
-    // ── Form state ────────────────────────────────────────────────────────────
+    // ── Form state (generic — fields common to every monitor type) ─────────────
     let name = use_state(String::new);
-    let url = use_state(String::new);
-    let method = use_state(|| "GET".to_string());
-    let status_codes = use_state(Vec::<u16>::new);
-    let tag_text = use_state(String::new);
     let interval = use_state(|| 60u32);
     let timeout_secs = use_state(|| 10u32);
     let retries = use_state(|| 0u32);
     let enabled = use_state(|| true);
 
     let name_err = use_state(|| false);
-    let url_err = use_state(|| false);
     let interval_err = use_state(|| false);
     let timeout_err = use_state(|| false);
     let retries_err = use_state(|| false);
@@ -66,19 +61,17 @@ pub fn create_page() -> Html {
     let notifications = use_state(Vec::<MonitorNotification>::new);
     let all_channels = use_state(Vec::<NotificationChannel>::new);
 
-    let req_headers = use_state(Vec::<(String, String)>::new);
-    let body_type = use_state(|| "none".to_string());
-    let body_json = use_state(String::new);
-    let body_json_err = use_state(|| false);
-    let body_form_fields = use_state(Vec::<(String, String)>::new);
+    // Check config (HTTP, TCP, ...) lives entirely inside MonitorConfigFields.
+    // This page only supplies the hydration source and receives the finished,
+    // already-validated value back.
+    let initial_config = use_state(|| None::<MonitorConfig>);
+    let config = use_state(|| None::<MonitorConfigInput>);
+    let show_config_errors = use_state(|| false);
 
     // Load existing monitor in edit mode
     {
         let edit_id = edit_id.clone();
         let name = name.clone();
-        let url = url.clone();
-        let method = method.clone();
-        let status_codes = status_codes.clone();
         let interval = interval.clone();
         let timeout_secs = timeout_secs.clone();
         let retries = retries.clone();
@@ -86,10 +79,7 @@ pub fn create_page() -> Html {
         let alert = alert.clone();
         let notifications = notifications.clone();
         let all_channels = all_channels.clone();
-        let req_headers = req_headers.clone();
-        let body_type = body_type.clone();
-        let body_json = body_json.clone();
-        let body_form_fields = body_form_fields.clone();
+        let initial_config = initial_config.clone();
 
         use_effect_with(edit_id.clone(), move |edit_id| {
             let Some(id) = edit_id.clone() else { return; };
@@ -97,32 +87,7 @@ pub fn create_page() -> Html {
                 match api::fetch_monitor(&id).await {
                     Ok(m) => {
                         name.set(m.name.clone());
-                        match &m.config {
-                            crate::api::MonitorConfig::Http { url: u, method: meth, expected_status, headers: hdrs, body: b } => {
-                                url.set(u.clone());
-                                if let Some(meth) = meth {
-                                    method.set(meth.to_string());
-                                }
-                                if let Some(codes) = expected_status
-                                    && !codes.is_empty() {
-                                        status_codes.set(codes.clone());
-                                    }
-                                if let Some(hdrs) = hdrs {
-                                    req_headers.set(hdrs.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
-                                }
-                                match b {
-                                    Some(crate::api::HttpBody::Json { content }) => {
-                                        body_type.set("json".to_string());
-                                        body_json.set(serde_json::to_string_pretty(content).unwrap_or_default());
-                                    }
-                                    Some(crate::api::HttpBody::Form { fields }) => {
-                                        body_type.set("form".to_string());
-                                        body_form_fields.set(fields.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
-                                    }
-                                    None => {}
-                                }
-                            }
-                        }
+                        initial_config.set(Some(m.config.clone()));
                         interval.set(m.interval);
                         timeout_secs.set(m.timeout);
                         retries.set(m.retries);
@@ -165,11 +130,6 @@ pub fn create_page() -> Html {
         s.set(el.value());
     })};
 
-    let on_url = { let s = url.clone(); Callback::from(move |e: InputEvent| {
-        let el: HtmlInputElement = e.target_unchecked_into();
-        s.set(el.value());
-    })};
-
     let on_interval = { let s = interval.clone(); Callback::from(move |e: InputEvent| {
         let el: HtmlInputElement = e.target_unchecked_into();
         if let Ok(v) = el.value().parse::<u32>() { s.set(v); }
@@ -190,53 +150,6 @@ pub fn create_page() -> Html {
         s.set(el.checked());
     })};
 
-    let on_method_select = {
-        let method = method.clone();
-        Callback::from(move |m: String| method.set(m))
-    };
-
-    let on_tag_input = {
-        let tag_text = tag_text.clone();
-        Callback::from(move |e: InputEvent| {
-            let el: HtmlInputElement = e.target_unchecked_into();
-            tag_text.set(el.value());
-        })
-    };
-
-    let on_tag_keydown = {
-        let status_codes = status_codes.clone();
-        let tag_text = tag_text.clone();
-        Callback::from(move |e: KeyboardEvent| {
-            match e.key().as_str() {
-                "Enter" | "," => {
-                    e.prevent_default();
-                    let val = (*tag_text).trim().to_string();
-                    if let Ok(n) = val.parse::<u16>()
-                        && (100..=599).contains(&n) {
-                            let mut codes = (*status_codes).clone();
-                            if !codes.contains(&n) { codes.push(n); }
-                            status_codes.set(codes);
-                        }
-                    tag_text.set(String::new());
-                }
-                "Backspace" if tag_text.is_empty() => {
-                    let mut codes = (*status_codes).clone();
-                    codes.pop();
-                    status_codes.set(codes);
-                }
-                _ => {}
-            }
-        })
-    };
-
-    let on_remove_code = {
-        let status_codes = status_codes.clone();
-        Callback::from(move |code: u16| {
-            let codes: Vec<u16> = (*status_codes).iter().filter(|&&c| c != code).cloned().collect();
-            status_codes.set(codes);
-        })
-    };
-
     let on_set_interval = {
         let interval = interval.clone();
         Callback::from(move |v: u32| interval.set(v))
@@ -247,107 +160,19 @@ pub fn create_page() -> Html {
         Callback::from(move |v: u32| timeout_secs.set(v))
     };
 
-    let on_body_json = {
-        let body_json = body_json.clone();
-        Callback::from(move |e: InputEvent| {
-            let el: HtmlTextAreaElement = e.target_unchecked_into();
-            body_json.set(el.value());
-        })
-    };
-
-    let on_body_type_select = {
-        let body_type = body_type.clone();
-        Callback::from(move |t: String| body_type.set(t))
-    };
-
-    let on_add_header = {
-        let req_headers = req_headers.clone();
-        Callback::from(move |_: ()| {
-            let mut hdrs = (*req_headers).clone();
-            hdrs.push((String::new(), String::new()));
-            req_headers.set(hdrs);
-        })
-    };
-
-    let on_remove_header = {
-        let req_headers = req_headers.clone();
-        Callback::from(move |i: usize| {
-            let hdrs: Vec<_> = (*req_headers).iter().enumerate()
-                .filter(|&(j, _)| j != i)
-                .map(|(_, v)| v.clone())
-                .collect();
-            req_headers.set(hdrs);
-        })
-    };
-
-    let on_header_key = {
-        let req_headers = req_headers.clone();
-        Callback::from(move |(i, val): (usize, String)| {
-            let mut hdrs = (*req_headers).clone();
-            if let Some(row) = hdrs.get_mut(i) { row.0 = val; }
-            req_headers.set(hdrs);
-        })
-    };
-
-    let on_header_val = {
-        let req_headers = req_headers.clone();
-        Callback::from(move |(i, val): (usize, String)| {
-            let mut hdrs = (*req_headers).clone();
-            if let Some(row) = hdrs.get_mut(i) { row.1 = val; }
-            req_headers.set(hdrs);
-        })
-    };
-
-    let on_add_form_field = {
-        let body_form_fields = body_form_fields.clone();
-        Callback::from(move |_: ()| {
-            let mut fields = (*body_form_fields).clone();
-            fields.push((String::new(), String::new()));
-            body_form_fields.set(fields);
-        })
-    };
-
-    let on_remove_form_field = {
-        let body_form_fields = body_form_fields.clone();
-        Callback::from(move |i: usize| {
-            let fields: Vec<_> = (*body_form_fields).iter().enumerate()
-                .filter(|&(j, _)| j != i)
-                .map(|(_, v)| v.clone())
-                .collect();
-            body_form_fields.set(fields);
-        })
-    };
-
-    let on_form_field_key = {
-        let body_form_fields = body_form_fields.clone();
-        Callback::from(move |(i, val): (usize, String)| {
-            let mut fields = (*body_form_fields).clone();
-            if let Some(row) = fields.get_mut(i) { row.0 = val; }
-            body_form_fields.set(fields);
-        })
-    };
-
-    let on_form_field_val = {
-        let body_form_fields = body_form_fields.clone();
-        Callback::from(move |(i, val): (usize, String)| {
-            let mut fields = (*body_form_fields).clone();
-            if let Some(row) = fields.get_mut(i) { row.1 = val; }
-            body_form_fields.set(fields);
-        })
+    let on_config_change = {
+        let config = config.clone();
+        Callback::from(move |c: Option<MonitorConfigInput>| config.set(c))
     };
 
     // ── Submit ────────────────────────────────────────────────────────────────
     let on_submit = {
         let name = name.clone();
-        let url = url.clone();
-        let method = method.clone();
-        let status_codes = status_codes.clone();
         let interval = interval.clone();
         let timeout_secs = timeout_secs.clone();
         let retries = retries.clone();
         let enabled = enabled.clone();
         let name_err = name_err.clone();
-        let url_err = url_err.clone();
         let interval_err = interval_err.clone();
         let timeout_err = timeout_err.clone();
         let retries_err = retries_err.clone();
@@ -355,68 +180,28 @@ pub fn create_page() -> Html {
         let alert = alert.clone();
         let edit_id = edit_id.clone();
         let navigator = navigator.clone();
-        let req_headers = req_headers.clone();
-        let body_type = body_type.clone();
-        let body_json = body_json.clone();
-        let body_json_err = body_json_err.clone();
-        let body_form_fields = body_form_fields.clone();
+        let config = config.clone();
+        let show_config_errors = show_config_errors.clone();
 
         Callback::from(move |e: SubmitEvent| {
             e.prevent_default();
 
             let n_ok = !(*name).trim().is_empty();
-            let u_ok = is_valid_url(&url);
             let iv = *interval;
             let iv_ok = (10..=86400).contains(&iv);
             let to = *timeout_secs;
             let to_ok = (1..=300).contains(&to);
             let rt = *retries;
             let rt_ok = rt <= 10;
+            let cfg_ok = config.is_some();
 
             name_err.set(!n_ok);
-            url_err.set(!u_ok);
             interval_err.set(!iv_ok);
             timeout_err.set(!to_ok);
             retries_err.set(!rt_ok);
+            show_config_errors.set(!cfg_ok);
 
-            let headers_map: std::collections::HashMap<String, String> = (*req_headers)
-                .iter()
-                .filter(|(k, _)| !k.trim().is_empty())
-                .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
-                .collect();
-
-            body_json_err.set(false);
-            let body_result: Result<Option<api::HttpBodyInput>, ()> = match (*body_type).as_str() {
-                "json" => {
-                    let s = (*body_json).trim().to_string();
-                    if s.is_empty() {
-                        Ok(None)
-                    } else {
-                        serde_json::from_str::<serde_json::Value>(&s)
-                            .map(|content| Some(api::HttpBodyInput::Json { content }))
-                            .map_err(|_| ())
-                    }
-                }
-                "form" => {
-                    let fields: std::collections::HashMap<String, String> = (*body_form_fields)
-                        .iter()
-                        .filter(|(k, _)| !k.trim().is_empty())
-                        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
-                        .collect();
-                    Ok(if fields.is_empty() { None } else { Some(api::HttpBodyInput::Form { fields }) })
-                }
-                _ => Ok(None),
-            };
-
-            let body = match body_result {
-                Ok(b) => b,
-                Err(()) => {
-                    body_json_err.set(true);
-                    return;
-                }
-            };
-
-            if !n_ok || !u_ok || !iv_ok || !to_ok || !rt_ok { return; }
+            if !n_ok || !iv_ok || !to_ok || !rt_ok || !cfg_ok { return; }
 
             submitting.set(true);
             alert.set(None);
@@ -427,13 +212,7 @@ pub fn create_page() -> Html {
                 timeout: *timeout_secs,
                 retries: *retries,
                 enabled: *enabled,
-                config: MonitorConfigInput::Http {
-                    url: (*url).trim().to_string(),
-                    method: (*method).clone(),
-                    expected_status: (*status_codes).clone(),
-                    headers: headers_map,
-                    body,
-                },
+                config: (*config).clone().expect("checked by cfg_ok above"),
             };
 
             let submitting = submitting.clone();
@@ -478,16 +257,11 @@ pub fn create_page() -> Html {
         <Layout>
             <form::CreateForm
                 name={(*name).clone()}
-                url={(*url).clone()}
-                method={(*method).clone()}
-                status_codes={(*status_codes).clone()}
-                tag_text={(*tag_text).clone()}
                 interval={*interval}
                 timeout_secs={*timeout_secs}
                 retries={*retries}
                 enabled={*enabled}
                 name_err={*name_err}
-                url_err={*url_err}
                 interval_err={*interval_err}
                 timeout_err={*timeout_err}
                 retries_err={*retries_err}
@@ -499,37 +273,20 @@ pub fn create_page() -> Html {
                 submitting={*submitting}
                 alert={(*alert).clone()}
                 on_name={on_name}
-                on_url={on_url}
-                on_method_select={on_method_select}
                 on_interval={on_interval}
                 on_timeout={on_timeout}
                 on_retries={on_retries}
                 on_enabled={on_enabled}
-                on_tag_input={on_tag_input}
-                on_tag_keydown={on_tag_keydown}
-                on_remove_code={on_remove_code}
                 on_set_interval={on_set_interval}
                 on_set_timeout={on_set_timeout}
                 on_submit={on_submit}
+                initial_config={(*initial_config).clone()}
+                show_config_errors={*show_config_errors}
+                on_config_change={on_config_change}
                 edit_id={edit_id.clone()}
                 notifications={(*notifications).clone()}
                 all_channels={(*all_channels).clone()}
                 on_reload_notifs={on_reload_notifs}
-                req_headers={(*req_headers).clone()}
-                body_type={(*body_type).clone()}
-                body_json={(*body_json).clone()}
-                body_json_err={*body_json_err}
-                body_form_fields={(*body_form_fields).clone()}
-                on_body_json={on_body_json}
-                on_body_type_select={on_body_type_select}
-                on_add_header={on_add_header}
-                on_remove_header={on_remove_header}
-                on_header_key={on_header_key}
-                on_header_val={on_header_val}
-                on_add_form_field={on_add_form_field}
-                on_remove_form_field={on_remove_form_field}
-                on_form_field_key={on_form_field_key}
-                on_form_field_val={on_form_field_val}
             />
         </Layout>
     }

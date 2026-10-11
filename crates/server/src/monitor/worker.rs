@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::monitor::checker::CheckOutcome;
+use crate::monitor::{checker::CheckOutcome, tcp::TcpChecker};
 use anyhow::Result;
 use chrono::{Days, Utc};
 use shared::{
@@ -56,6 +56,11 @@ impl MonitorWorker {
                 Duration::from_secs(monitor.timeout as u64),
                 headers.clone(),
                 body.clone(),
+            )),
+            MonitorConfig::Tcp { ref hostname, port } => Box::new(TcpChecker::new(
+                hostname.clone(),
+                port,
+                Duration::from_secs(monitor.timeout as u64),
             )),
         }
     }

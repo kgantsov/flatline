@@ -1,4 +1,4 @@
-use super::{PageData, Tab, charts};
+use super::{charts, PageData, Tab};
 use crate::api::{
     Incident, Monitor, MonitorCheck, MonitorCheckStatus, MonitorConfig, MonitorStats,
 };
@@ -12,6 +12,7 @@ fn monitor_method(m: &Monitor) -> String {
             .as_ref()
             .map(|m| m.to_string())
             .unwrap_or_else(|| "GET".into()),
+        MonitorConfig::Tcp { .. } => "TCP".into(),
     }
 }
 
@@ -40,7 +41,11 @@ fn calc_mttr(incidents: &[Incident]) -> Option<(u64, usize)> {
         .filter_map(|i| {
             let resolved = i.resolved_at?;
             let secs = (resolved - i.started_at).num_seconds();
-            if secs > 0 { Some(secs as u64) } else { None }
+            if secs > 0 {
+                Some(secs as u64)
+            } else {
+                None
+            }
         })
         .collect();
     if resolved.is_empty() {

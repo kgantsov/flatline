@@ -125,7 +125,7 @@ struct ToggleBody {
     enabled: bool,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum HttpBodyInput {
     Json {
@@ -147,7 +147,7 @@ pub struct MonitorFormData {
     pub config: MonitorConfigInput,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum MonitorConfigInput {
     Http {
@@ -159,6 +159,11 @@ pub enum MonitorConfigInput {
         headers: std::collections::HashMap<String, String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         body: Option<HttpBodyInput>,
+    },
+
+    Tcp {
+        hostname: String,
+        port: u16,
     },
 }
 

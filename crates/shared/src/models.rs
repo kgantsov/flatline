@@ -67,6 +67,14 @@ pub enum MonitorConfig {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         body: Option<HttpBody>,
     },
+    Tcp {
+        /// Hostname or IP address to connect to.
+        #[cfg_attr(feature = "utoipa", schema(example = "example.com"))]
+        hostname: String,
+        /// TCP port to connect to.
+        #[cfg_attr(feature = "utoipa", schema(example = 443))]
+        port: u16,
+    },
 }
 
 /// Status of a single monitor check.
@@ -372,7 +380,9 @@ pub struct PublicMonitorStatus {
     pub day_downtime_minutes: Vec<u32>,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]

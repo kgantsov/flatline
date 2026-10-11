@@ -68,9 +68,10 @@ pub fn fmt_ms(ms: u64) -> String {
     }
 }
 
-pub fn monitor_url(m: &Monitor) -> &str {
+pub fn monitor_url(m: &Monitor) -> String {
     match &m.config {
-        MonitorConfig::Http { url, .. } => url.as_str(),
+        MonitorConfig::Http { url, .. } => url.clone(),
+        MonitorConfig::Tcp { hostname, port } => format!("tcp://{}:{}", hostname, port),
     }
 }
 
